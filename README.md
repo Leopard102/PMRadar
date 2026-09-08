@@ -1,20 +1,17 @@
 # PMRadar
 
-PMRadar shows ProtoManly's Weather radar data on Xaero's World Map. It lets you track storms from the map, switch between radar products, and check coverage from discovered radar stations.
+PMRadar adds a radar layer to Xaero's World Map for ProtoManly's Weather. It uses PMWeather's radar stations so you can view storms on the map, switch radar views, and see each station's coverage area.
 
-PMRadar includes:
+PMRadar adds:
 
-- **Xaero's World Map radar overlay:** View PMWeather storm data directly on the full world map.
-- **Reflectivity mode:** Shows precipitation intensity in dBZ using familiar weather radar colors.
-- **Velocity mode:** Shows wind moving toward or away from the selected radar site in mph.
-- **PMRadar Correlation Coefficient mode:** Adds a custom simulated CC product that is not part of the base PMWeather radar set. This mode compares storm return strength with tornado debris information to estimate where precipitation is clean, mixed, or debris-contaminated, making it useful for spotting suspicious circulation areas during severe weather.
-- **Dual Mode display:** Compare two radar products at once with a split radar view.
-- **Radar station discovery:** Detects PMWeather WSR-88D radar towers, assigns station codes, and remembers discovered sites between sessions.
-- **Radar site markers:** Working stations appear with purple markers, while damaged stations appear with red markers.
-- **Coverage ranges:** Radar stations have a base coverage radius of **2,048 blocks**. A detected range upgrade near the PMWeather radar display increases coverage to **8,192 blocks**.
-- **Lightning markers:** Shows recent detected lightning strikes on the map with markers that fade over time.
-- **Radar Tools menu:** Toggle the radar display, Dual Mode, radar location markers, lightning markers, menu animations, and text-swap animations.
-- **Multiplayer support:** Server-side synchronization handles radar tower status and tornado debris data when PMRadar and PMWeather are installed on the server and participating clients.
+- **Xaero's World Map overlay:** Shows PMWeather radar data directly on the full world map.
+- **Correlation Coefficient mode:** Adds a custom Correlation Coefficient radar view, separate from PMWeather's normal radar modes. It helps show spots where debris may be mixed into stronger storms.
+- **Dual Mode display:** Compare two radar views at once with a split map view.
+- **WSR-88D tower detection:** Detects PMWeather WSR-88D radar towers and uses each one as a selectable radar source.
+- **Broken radome handling:** If the radar shell is damaged but the core is still there, the station can still be found, but it stops producing radar returns until repaired.
+- **Coverage ranges:** Each radar site covers **2,048 blocks** by default. A range upgrade module next to the nearby PMWeather radar display expands coverage to **8,192 blocks**.
+- **Lightning markers:** Shows recent lightning strikes on the map and fades them out over time.
+- **Radar Tools menu:** Toggle the radar layer, Dual Mode, radar locations, lightning markers, and animation options.
 
 ## Required mods
 

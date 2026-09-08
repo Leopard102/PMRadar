@@ -1,1 +1,1 @@
-Weather radar for Xaero's World Map, powered by ProtoManly's Weather. Includes reflectivity, velocity, correlation coefficient, dual mode, and lightning markers.
+Xaero's World Map radar overlay for ProtoManly's Weather, with a custom Correlation Coefficient view, Dual Mode, station coverage, and lightning markers.
