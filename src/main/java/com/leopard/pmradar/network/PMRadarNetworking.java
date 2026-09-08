@@ -1,0 +1,53 @@
+package com.leopard.pmradar.network;
+
+import com.leopard.pmradar.PMRadar;
+import net.neoforged.bus.api.SubscribeEvent;
+import net.neoforged.fml.common.EventBusSubscriber;
+import net.neoforged.fml.loading.FMLEnvironment;
+import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
+
+@EventBusSubscriber(modid = PMRadar.MODID)
+public final class PMRadarNetworking {
+    private PMRadarNetworking() {
+    }
+
+    @SubscribeEvent
+    public static void register(RegisterPayloadHandlersEvent event) {
+        event.registrar("1").playToClient(
+                RadarSitesPayload.TYPE,
+                RadarSitesPayload.STREAM_CODEC,
+                (payload, context) -> handleClientbound(payload)
+        );
+        event.registrar("1").playToClient(
+                RadarDebrisPayload.TYPE,
+                RadarDebrisPayload.STREAM_CODEC,
+                (payload, context) -> handleClientbound(payload)
+        );
+    }
+
+    private static void handleClientbound(RadarSitesPayload payload) {
+        if (!FMLEnvironment.dist.isClient()) {
+            return;
+        }
+
+        try {
+            Class<?> handler = Class.forName("com.leopard.pmradar.client.ClientRadarSitesHandler");
+            handler.getMethod("handle", RadarSitesPayload.class).invoke(null, payload);
+        } catch (ReflectiveOperationException exception) {
+            PMRadar.LOGGER.warn("Failed to apply synced radar sites", exception);
+        }
+    }
+
+    private static void handleClientbound(RadarDebrisPayload payload) {
+        if (!FMLEnvironment.dist.isClient()) {
+            return;
+        }
+
+        try {
+            Class<?> handler = Class.forName("com.leopard.pmradar.client.ClientRadarSitesHandler");
+            handler.getMethod("handle", RadarDebrisPayload.class).invoke(null, payload);
+        } catch (ReflectiveOperationException exception) {
+            PMRadar.LOGGER.warn("Failed to apply synced radar debris", exception);
+        }
+    }
+}

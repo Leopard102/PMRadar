@@ -1,0 +1,15 @@
+{
+  "required": false,
+  "minVersion": "0.8",
+  "package": "com.leopard.pmradar.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "SupercellDistantChunkLoadingMixin"
+  ],
+  "client": [
+    "XaeroWorldMapZoomMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 0
+  }
+}
