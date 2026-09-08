@@ -1,8 +1,8 @@
 # PMRadar
 
-Bring ProtoManly's Weather to your world map. PMRadar adds a weather radar overlay to Xaero's World Map, letting you follow storms, compare radar products, and check coverage from your radar stations without leaving the map screen.
+PMRadar shows ProtoManly's Weather radar data on Xaero's World Map. It lets you track storms from the map, switch between radar products, and check coverage from discovered radar stations.
 
-## Features
+PMRadar includes:
 
 - **Xaero's World Map radar overlay:** View PMWeather storm data directly on the full world map.
 - **Reflectivity mode:** Shows precipitation intensity in dBZ using familiar weather radar colors.
@@ -21,8 +21,6 @@ Bring ProtoManly's Weather to your world map. PMRadar adds a weather radar overl
 - [ProtoManly's Weather](https://modrinth.com/mod/protomanlys-weather)
 - [Xaero's World Map](https://modrinth.com/mod/xaeros-world-map)
 - [Xaero's Minimap](https://modrinth.com/mod/xaeros-minimap)
-
-Use the Minecraft 1.21.1 NeoForge versions of these mods, along with their own required dependencies. PMRadar will not work without PMWeather.
 
 ## Build
 
