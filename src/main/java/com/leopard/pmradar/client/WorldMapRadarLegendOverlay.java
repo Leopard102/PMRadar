@@ -1627,12 +1627,7 @@ public final class WorldMapRadarLegendOverlay {
             boolean lowerPanel
     ) {
         MapView panelView = panelMapView(sourceView, panel);
-        boolean rawLowerRadarClip = lowerPanel && shouldUseDualModeLowerRadarRawClip();
-        if (rawLowerRadarClip) {
-            enableDualModeLowerRadarRawClip(panel);
-        } else {
-            guiGraphics.enableScissor(panel.left(), panel.top(), panel.right(), panel.bottom());
-        }
+        enableDualModeRadarRawClip(panel, panel.top());
         try {
             double lowerRadarTopShift = dualModeLowerRadarTopShift(panel, lowerPanel);
             guiGraphics.pose().pushPose();
@@ -1654,11 +1649,7 @@ public final class WorldMapRadarLegendOverlay {
                 guiGraphics.pose().popPose();
             }
         } finally {
-            if (rawLowerRadarClip) {
-                RenderSystem.disableScissor();
-            } else {
-                guiGraphics.disableScissor();
-            }
+            RenderSystem.disableScissor();
         }
         drawDualModeRangeCircles(guiGraphics, panel, panelView, radarSites, lowerPanel);
     }
@@ -1675,12 +1666,7 @@ public final class WorldMapRadarLegendOverlay {
             return;
         }
 
-        boolean rawLowerRadarClip = lowerPanel && shouldUseDualModeLowerRadarRawClip();
-        if (rawLowerRadarClip) {
-            enableDualModeLowerRadarRawClip(panel);
-        } else {
-            guiGraphics.enableScissor(panel.left(), clipTop, panel.right(), panel.bottom());
-        }
+        enableDualModeRadarRawClip(panel, clipTop);
         try {
             guiGraphics.pose().pushPose();
             try {
@@ -1694,11 +1680,7 @@ public final class WorldMapRadarLegendOverlay {
                 guiGraphics.pose().popPose();
             }
         } finally {
-            if (rawLowerRadarClip) {
-                RenderSystem.disableScissor();
-            } else {
-                guiGraphics.disableScissor();
-            }
+            RenderSystem.disableScissor();
         }
     }
 
@@ -1715,30 +1697,25 @@ public final class WorldMapRadarLegendOverlay {
         return Math.max(0.0D, panel.top() - dualModeRawLowerPanelTop() / guiScale);
     }
 
-    private static boolean shouldUseDualModeLowerRadarRawClip() {
-        double guiScale = currentGuiScale();
-        return guiScale >= 2.0D && guiScale <= 4.0D;
-    }
-
-    private static void enableDualModeLowerRadarRawClip(DualMapPanel panel) {
+    private static void enableDualModeRadarRawClip(DualMapPanel panel, int clipTop) {
         Minecraft minecraft = Minecraft.getInstance();
         double guiScale = currentGuiScale();
         if (minecraft == null || minecraft.getWindow() == null || guiScale <= 0.0D) {
-            RenderSystem.enableScissor(panel.left(), panel.top(), panel.width(), panel.height());
+            RenderSystem.enableScissor(panel.left(), clipTop, panel.width(), Math.max(1, panel.bottom() - clipTop));
             return;
         }
 
         int framebufferWidth = minecraft.getWindow().getWidth();
         int framebufferHeight = minecraft.getWindow().getHeight();
         if (framebufferWidth <= 0 || framebufferHeight <= 0) {
-            RenderSystem.enableScissor(panel.left(), panel.top(), panel.width(), panel.height());
+            RenderSystem.enableScissor(panel.left(), clipTop, panel.width(), Math.max(1, panel.bottom() - clipTop));
             return;
         }
 
         int rawLeft = clampInt((int) Math.floor(panel.left() * guiScale), 0, framebufferWidth);
         int rawRight = clampInt((int) Math.ceil(panel.right() * guiScale), rawLeft, framebufferWidth);
-        int rawTop = clampInt(dualModeRawLowerPanelTop(), 0, framebufferHeight);
-        int rawBottomEdge = clampInt(rawTop + dualModeRawPanelHeight(), rawTop, framebufferHeight);
+        int rawTop = clampInt((int) Math.floor(clipTop * guiScale), 0, framebufferHeight);
+        int rawBottomEdge = clampInt((int) Math.ceil(panel.bottom() * guiScale), rawTop, framebufferHeight);
         RenderSystem.enableScissor(rawLeft, framebufferHeight - rawBottomEdge, Math.max(1, rawRight - rawLeft), Math.max(1, rawBottomEdge - rawTop));
     }
 
