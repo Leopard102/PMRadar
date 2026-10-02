@@ -384,10 +384,8 @@ public final class WorldMapRadarLegendOverlay {
     }
 
     /**
-     * Draws the radar bar, mode select row, and tools button before Xaero renders its own map
-     * icons and popups (e.g. its right-click menu) for this frame. These used to be drawn from
-     * the later Post-render event, which runs after literally everything Xaero draws - so they
-     * always ended up covering Xaero's own icons and popups instead of sitting behind them.
+     * Draws the radar bar, mode select row, and tools button after Xaero flushes its map icons
+     * but before Xaero renders later popups (e.g. its right-click menu) for this frame.
      */
     public static void drawPersistentControlsBeforeXaeroPopups(Screen screen, GuiGraphics guiGraphics, int mouseX, int mouseY) {
         if (!isWorldMap(screen) || isHiddenUi(screen)) {
