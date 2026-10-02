@@ -330,14 +330,23 @@ public abstract class XaeroWorldMapZoomMixin {
             if (!WorldMapRadarLegendOverlay.isDualModeSourceMapReady()) {
                 WorldMapRadarLegendOverlay.captureDualModeSourceMap();
             }
-            WorldMapRadarLegendOverlay.disableDualModeMainMapScissor();
-            WorldMapRadarLegendOverlay.drawPersistentControlsBeforeXaeroPopups(
-                    (Screen) (Object) this, guiGraphics, this.pmradar$renderMouseX, this.pmradar$renderMouseY
-            );
-            return;
         }
 
         WorldMapRadarLegendOverlay.disableDualModeMainMapScissor();
+    }
+
+    @Inject(
+            method = "render(Lnet/minecraft/client/gui/GuiGraphics;IIF)V",
+            at = @At(
+                    value = "INVOKE",
+                    target = "Lnet/minecraft/client/renderer/MultiBufferSource$BufferSource;endBatch()V",
+                    ordinal = 3,
+                    shift = At.Shift.AFTER
+            ),
+            require = 0,
+            remap = false
+    )
+    private void pmradar$drawControlsAfterXaeroOverlays(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks, CallbackInfo callbackInfo) {
         WorldMapRadarLegendOverlay.drawPersistentControlsBeforeXaeroPopups(
                 (Screen) (Object) this, guiGraphics, this.pmradar$renderMouseX, this.pmradar$renderMouseY
         );
