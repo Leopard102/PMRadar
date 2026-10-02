@@ -83,10 +83,8 @@ configurations {
 }
 
 dependencies {
-    implementation "maven.modrinth:TfCsmTLI:twmdjNBb"
-    implementation "curse.maven:xaeros-world-map-317780:8698659"
-    implementation "curse.maven:xaeros-minimap-263420:8449819"
-    implementation "curse.maven:chunky-pregenerator-forge-485681:6383261"
+    implementation "maven.modrinth:TfCsmTLI:Qp0DIGJk"
+    implementation "curse.maven:xaeros-world-map-317780:8849973"
 }
 
 var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {

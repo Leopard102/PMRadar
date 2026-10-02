@@ -45,6 +45,7 @@ public abstract class XaeroWorldMapZoomMixin {
     public abstract void drawObjectOnMap(PoseStack matrixStack, VertexConsumer guiLinearBuffer, double x, double z, float angle, double sc, float offX, float offY, int textureX, int textureY, int w, int h, int filter);
 
     private int pmradar$renderMouseX;
+    private int pmradar$renderMouseY;
     @Shadow private int mouseDownPosX;
     @Shadow private int mouseCheckPosX;
     @Shadow private long prevMouseCheckTimeNano;
@@ -75,6 +76,7 @@ public abstract class XaeroWorldMapZoomMixin {
             remap = false
     )
     private int pmradar$hideRenderMouseYBehindRadarTools(int mouseY) {
+        this.pmradar$renderMouseY = mouseY;
         return WorldMapRadarLegendOverlay.xaeroRenderMouseY((Screen) (Object) this, this.pmradar$renderMouseX, mouseY);
     }
 
@@ -175,9 +177,12 @@ public abstract class XaeroWorldMapZoomMixin {
             Minecraft minecraft,
             float partialTicks
     ) {
+        WorldMapRadarLegendOverlay.drawStationLabelsBeforeXaeroIcons((Screen) (Object) this, guiGraphics);
+
+        HoveredMapElementHolder<?, ?> result;
         if (StormOverlayData.isDisplayEnabled() && StormOverlayData.isDualModeEnabled()) {
             if (minecraft == null || minecraft.getWindow() == null) {
-                return mapElementRenderHandler.render(
+                result = mapElementRenderHandler.render(
                         guiMap,
                         guiGraphics,
                         renderTypeBuffers,
@@ -197,116 +202,122 @@ public abstract class XaeroWorldMapZoomMixin {
                         minecraft,
                         partialTicks
                 );
-            }
+            } else {
+                WorldMapRadarLegendOverlay.disableDualModeMainMapScissor();
+                WorldMapRadarLegendOverlay.renderDualModeMapsBeforeXaeroElements((Screen) (Object) this, guiGraphics);
 
-            WorldMapRadarLegendOverlay.disableDualModeMainMapScissor();
-            WorldMapRadarLegendOverlay.renderDualModeMapsBeforeXaeroElements((Screen) (Object) this, guiGraphics);
+                int width = minecraft.getWindow().getGuiScaledWidth();
+                int height = minecraft.getWindow().getGuiScaledHeight();
+                int upperBottom = WorldMapRadarLegendOverlay.dualModeGuiPanelHeight();
+                int lowerTop = WorldMapRadarLegendOverlay.dualModeLowerGuiPanelTop();
+                HoveredMapElementHolder<?, ?> upperViewed = null;
+                HoveredMapElementHolder<?, ?> lowerViewed = null;
 
-            int width = minecraft.getWindow().getGuiScaledWidth();
-            int height = minecraft.getWindow().getGuiScaledHeight();
-            int upperBottom = WorldMapRadarLegendOverlay.dualModeGuiPanelHeight();
-            int lowerTop = WorldMapRadarLegendOverlay.dualModeLowerGuiPanelTop();
-            HoveredMapElementHolder<?, ?> upperViewed = null;
-            HoveredMapElementHolder<?, ?> lowerViewed = null;
-
-            // Each panel needs Xaero's full provider/render pass, including per-entity transforms.
-            WorldMapRadarLegendOverlay.beginDualModeCurrentXaeroMapElementRender();
-            try {
-                this.pmradar$dualModeMapElementPanel = 1;
-                guiGraphics.enableScissor(0, 0, width, upperBottom);
-                guiGraphics.pose().pushPose();
+                // Each panel needs Xaero's full provider/render pass, including per-entity transforms.
+                WorldMapRadarLegendOverlay.beginDualModeCurrentXaeroMapElementRender();
                 try {
-                    WorldMapRadarLegendOverlay.translateXaeroElementsToUpperPanel(guiGraphics.pose());
-                    guiGraphics.pose().translate(0.0D, 0.0D, WorldMapRadarLegendOverlay.dualModeXaeroRadarElementZOffset());
-                    upperViewed = mapElementRenderHandler.render(
-                            guiMap,
-                            guiGraphics,
-                            renderTypeBuffers,
-                            rendererProvider,
-                            cameraX,
-                            cameraZ,
-                            screenWidth,
-                            screenHeight,
-                            screenSizeBasedScale,
-                            scale,
-                            playerDimDiv,
-                            mousePosX,
-                            mousePosZ,
-                            brightness,
-                            cave,
-                            viewed,
-                            minecraft,
-                            partialTicks
-                    );
-                    guiGraphics.flush();
-                    renderTypeBuffers.endBatch();
-                    WorldMapRadarLegendOverlay.flushXaeroMinimapRenderBuffers();
+                    this.pmradar$dualModeMapElementPanel = 1;
+                    guiGraphics.enableScissor(0, 0, width, upperBottom);
+                    guiGraphics.pose().pushPose();
+                    try {
+                        WorldMapRadarLegendOverlay.translateXaeroElementsToUpperPanel(guiGraphics.pose());
+                        guiGraphics.pose().translate(0.0D, 0.0D, WorldMapRadarLegendOverlay.dualModeXaeroRadarElementZOffset());
+                        upperViewed = mapElementRenderHandler.render(
+                                guiMap,
+                                guiGraphics,
+                                renderTypeBuffers,
+                                rendererProvider,
+                                cameraX,
+                                cameraZ,
+                                screenWidth,
+                                screenHeight,
+                                screenSizeBasedScale,
+                                scale,
+                                playerDimDiv,
+                                mousePosX,
+                                mousePosZ,
+                                brightness,
+                                cave,
+                                viewed,
+                                minecraft,
+                                partialTicks
+                        );
+                        guiGraphics.flush();
+                        renderTypeBuffers.endBatch();
+                    } finally {
+                        guiGraphics.pose().popPose();
+                        guiGraphics.disableScissor();
+                    }
+
+                    this.pmradar$dualModeMapElementPanel = 2;
+                    WorldMapRadarLegendOverlay.prepareDualModeCurrentXaeroMapElementRenderPass();
+                    guiGraphics.enableScissor(0, lowerTop, width, Math.min(height, lowerTop + upperBottom));
+                    guiGraphics.pose().pushPose();
+                    try {
+                        guiGraphics.pose().translate(0.0D, 0.0D, WorldMapRadarLegendOverlay.dualModeXaeroRadarElementZOffset());
+                        lowerViewed = mapElementRenderHandler.render(
+                                guiMap,
+                                guiGraphics,
+                                renderTypeBuffers,
+                                rendererProvider,
+                                cameraX,
+                                cameraZ,
+                                screenWidth,
+                                screenHeight,
+                                screenSizeBasedScale,
+                                scale,
+                                playerDimDiv,
+                                mousePosX,
+                                mousePosZ,
+                                brightness,
+                                cave,
+                                viewed,
+                                minecraft,
+                                partialTicks
+                        );
+                        guiGraphics.flush();
+                        renderTypeBuffers.endBatch();
+                    } finally {
+                        guiGraphics.pose().popPose();
+                        guiGraphics.disableScissor();
+                    }
                 } finally {
-                    guiGraphics.pose().popPose();
-                    guiGraphics.disableScissor();
+                    this.pmradar$dualModeMapElementPanel = 0;
+                    WorldMapRadarLegendOverlay.endDualModeCurrentXaeroMapElementRender();
                 }
 
-                this.pmradar$dualModeMapElementPanel = 2;
-                WorldMapRadarLegendOverlay.prepareDualModeCurrentXaeroMapElementRenderPass();
-                guiGraphics.enableScissor(0, lowerTop, width, Math.min(height, lowerTop + upperBottom));
-                guiGraphics.pose().pushPose();
-                try {
-                    guiGraphics.pose().translate(0.0D, 0.0D, WorldMapRadarLegendOverlay.dualModeXaeroRadarElementZOffset());
-                    lowerViewed = mapElementRenderHandler.render(
-                            guiMap,
-                            guiGraphics,
-                            renderTypeBuffers,
-                            rendererProvider,
-                            cameraX,
-                            cameraZ,
-                            screenWidth,
-                            screenHeight,
-                            screenSizeBasedScale,
-                            scale,
-                            playerDimDiv,
-                            mousePosX,
-                            mousePosZ,
-                            brightness,
-                            cave,
-                            viewed,
-                            minecraft,
-                            partialTicks
-                    );
-                    guiGraphics.flush();
-                    renderTypeBuffers.endBatch();
-                    WorldMapRadarLegendOverlay.flushXaeroMinimapRenderBuffers();
-                } finally {
-                    guiGraphics.pose().popPose();
-                    guiGraphics.disableScissor();
-                }
-            } finally {
-                this.pmradar$dualModeMapElementPanel = 0;
-                WorldMapRadarLegendOverlay.endDualModeCurrentXaeroMapElementRender();
+                result = lowerViewed != null ? lowerViewed : upperViewed;
             }
-
-            return lowerViewed != null ? lowerViewed : upperViewed;
+        } else {
+            result = mapElementRenderHandler.render(
+                    guiMap,
+                    guiGraphics,
+                    renderTypeBuffers,
+                    rendererProvider,
+                    cameraX,
+                    cameraZ,
+                    screenWidth,
+                    screenHeight,
+                    screenSizeBasedScale,
+                    scale,
+                    playerDimDiv,
+                    mousePosX,
+                    mousePosZ,
+                    brightness,
+                    cave,
+                    viewed,
+                    minecraft,
+                    partialTicks
+            );
         }
 
-        return mapElementRenderHandler.render(
-                guiMap,
-                guiGraphics,
-                renderTypeBuffers,
-                rendererProvider,
-                cameraX,
-                cameraZ,
-                screenWidth,
-                screenHeight,
-                screenSizeBasedScale,
-                scale,
-                playerDimDiv,
-                mousePosX,
-                mousePosZ,
-                brightness,
-                cave,
-                viewed,
-                minecraft,
-                partialTicks
+        // Drawn here, right after Xaero finishes its own icons (and its own player-position arrow),
+        // so our persistent controls sit on top of the player arrow like before, while still
+        // landing before anything Xaero draws later in its render pass (e.g. its right-click menu).
+        WorldMapRadarLegendOverlay.drawPersistentControlsBeforeXaeroPopups(
+                (Screen) (Object) this, guiGraphics, this.pmradar$renderMouseX, this.pmradar$renderMouseY
         );
+        return result;
     }
 
     @Inject(

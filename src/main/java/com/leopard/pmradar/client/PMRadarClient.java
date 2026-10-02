@@ -3,6 +3,7 @@ package com.leopard.pmradar.client;
 import com.leopard.pmradar.PMRadar;
 import net.minecraft.client.Minecraft;
 import net.neoforged.api.distmarker.Dist;
+import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
@@ -12,7 +13,6 @@ import net.neoforged.neoforge.client.event.ScreenEvent;
 @EventBusSubscriber(modid = PMRadar.MODID, value = Dist.CLIENT)
 public final class PMRadarClient {
     private static final long RADAR_UPDATE_INTERVAL_TICKS = 20L;
-    private static final long WORLD_MAP_REFRESH_INTERVAL_TICKS = 20L;
 
     private static long ticks;
 
@@ -29,15 +29,12 @@ public final class PMRadarClient {
         }
 
         long tick = ticks++;
-        boolean changed = false;
         if (tick % RADAR_UPDATE_INTERVAL_TICKS == 0L) {
-            changed = StormOverlayData.update(minecraft);
+            StormOverlayData.update(minecraft);
         }
-
-        XaeroStormOverlayRegistrar.tick(changed, changed && tick % WORLD_MAP_REFRESH_INTERVAL_TICKS == 0L);
     }
 
-    @SubscribeEvent
+    @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onScreenRender(ScreenEvent.Render.Post event) {
         WorldMapRadarLegendOverlay.render(event);
     }
@@ -71,6 +68,5 @@ public final class PMRadarClient {
     private static void clearClientState() {
         StormOverlayData.clear();
         WorldMapRadarLegendOverlay.reset();
-        XaeroStormOverlayRegistrar.reset();
     }
 }

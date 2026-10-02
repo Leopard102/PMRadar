@@ -21,7 +21,7 @@ public record RadarSitesPayload(ResourceLocation dimension, List<Entry> entries)
             int count = buffer.readVarInt();
             List<Entry> entries = new ArrayList<>(Math.min(count, 256));
             for (int i = 0; i < count; i++) {
-                entries.add(new Entry(buffer.readBlockPos(), buffer.readByte()));
+                entries.add(new Entry(buffer.readBlockPos(), buffer.readByte(), buffer.readBoolean()));
             }
 
             return new RadarSitesPayload(dimension, List.copyOf(entries));
@@ -34,6 +34,7 @@ public record RadarSitesPayload(ResourceLocation dimension, List<Entry> entries)
             for (Entry entry : payload.entries()) {
                 buffer.writeBlockPos(entry.pos());
                 buffer.writeByte(entry.state());
+                buffer.writeBoolean(entry.rangeUpgraded());
             }
         }
     };
@@ -43,17 +44,17 @@ public record RadarSitesPayload(ResourceLocation dimension, List<Entry> entries)
         return TYPE;
     }
 
-    public record Entry(BlockPos pos, byte state) {
+    public record Entry(BlockPos pos, byte state, boolean rangeUpgraded) {
         public static final byte REMOVED = 0;
         public static final byte WORKING = 1;
         public static final byte BROKEN = 2;
 
         public static Entry removed(BlockPos pos) {
-            return new Entry(pos.immutable(), REMOVED);
+            return new Entry(pos.immutable(), REMOVED, false);
         }
 
-        public static Entry visible(BlockPos pos, boolean operational) {
-            return new Entry(pos.immutable(), operational ? WORKING : BROKEN);
+        public static Entry visible(BlockPos pos, boolean operational, boolean rangeUpgraded) {
+            return new Entry(pos.immutable(), operational ? WORKING : BROKEN, rangeUpgraded);
         }
 
         public boolean visible() {

@@ -16,7 +16,6 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.renderer.GameRenderer;
-import net.minecraft.client.renderer.MultiBufferSource.BufferSource;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.core.BlockPos;
 import net.minecraft.resources.ResourceKey;
@@ -48,13 +47,16 @@ public final class WorldMapRadarLegendOverlay {
     private static final String XAERO_WORLD_MAP_SCREEN = "xaero.map.gui.GuiMap";
     private static final int DEFAULT_RADAR_TEXTURE_SIZE = 100;
     private static final int MIN_RADAR_TEXTURE_SIZE = 32;
-    private static final int MAX_RADAR_TEXTURE_SIZE = 200;
+    private static final int MAX_RADAR_TEXTURE_SIZE = 400;
     private static final float REFLECTIVITY_LEGEND_MIN_DBZ = 3.0F;
     private static final float REFLECTIVITY_LEGEND_MAX_DBZ = 80.0F;
     private static final float VELOCITY_LEGEND_MAX_MPH = 245.0F;
-    private static final float CORRELATION_MIN = 0.208F;
-    private static final float CORRELATION_MAX = 1.048F;
+    private static final float CORRELATION_MIN = StormOverlayData.CORRELATION_MIN;
+    private static final float CORRELATION_MAX = StormOverlayData.CORRELATION_MAX;
     private static final double RADAR_BLIND_SPOT_RADIUS_BLOCKS = 48.0D;
+    // Must match StormOverlayData.BASE_RADAR_RADIUS_BLOCKS - the "normal" (non-upgraded) radius,
+    // used as the reference point for scaling texture resolution with a site's actual radius.
+    private static final double BASE_RADAR_RADIUS_BLOCKS = 2048.0D;
     private static final int RADAR_TOOLS_BUTTON_SIZE = 24;
     private static final int RADAR_TOOLS_BOTTOM_MARGIN = 4;
     private static final int BOTTOM_CONTROLS_PADDING = 6;
@@ -337,6 +339,131 @@ public final class WorldMapRadarLegendOverlay {
         radarLayerRenderedThisFrame = true;
     }
 
+    /**
+     * Draws the station-code labels (e.g. "KDVN") before Xaero renders its own map icons/waypoints
+     * for this frame. Station labels used to be drawn from the later Post-render event, which runs
+     * after Xaero has already drawn its icon layer - so our label boxes always painted over the top
+     * of any Xaero icon they overlapped. Drawing them here, from the mixin injection point right
+     * before Xaero's icon-render call, means Xaero's icons are painted afterward and correctly end
+     * up in front of our labels instead of behind them.
+     */
+    public static void drawStationLabelsBeforeXaeroIcons(Screen screen, GuiGraphics guiGraphics) {
+        if (!isWorldMap(screen) || isHiddenUi(screen)) {
+            return;
+        }
+
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.font == null) {
+            return;
+        }
+
+        int width = minecraft.getWindow().getGuiScaledWidth();
+        int height = minecraft.getWindow().getGuiScaledHeight();
+        MapView mapView = mapView(screen, width, height);
+        boolean displayEnabled = StormOverlayData.isDisplayEnabled();
+        boolean radarLocationsVisible = StormOverlayData.shouldShowRadarLocations();
+        boolean dualModeActive = displayEnabled && StormOverlayData.isDualModeEnabled() && mapView != null;
+
+        if (mapView == null || !radarLocationsVisible || dualModeActive) {
+            // Dual mode draws its own per-panel labels elsewhere; anything else means there's
+            // nothing valid to click on right now.
+            stationLabelBounds = List.of();
+            return;
+        }
+
+        List<StormOverlayData.RadarSiteView> radarSites = StormOverlayData.radarSiteViews(mapView.dimension());
+        guiGraphics.pose().pushPose();
+        try {
+            guiGraphics.pose().last().pose().identity();
+            clearGuiDepthBeforeOverlay(guiGraphics);
+            drawStationLabels(guiGraphics, minecraft.font, mapView, radarSites);
+            guiGraphics.flush();
+        } finally {
+            guiGraphics.pose().popPose();
+        }
+    }
+
+    /**
+     * Draws the radar bar, mode select row, and tools button before Xaero renders its own map
+     * icons and popups (e.g. its right-click menu) for this frame. These used to be drawn from
+     * the later Post-render event, which runs after literally everything Xaero draws - so they
+     * always ended up covering Xaero's own icons and popups instead of sitting behind them.
+     */
+    public static void drawPersistentControlsBeforeXaeroPopups(Screen screen, GuiGraphics guiGraphics, int mouseX, int mouseY) {
+        if (!isWorldMap(screen) || isHiddenUi(screen)) {
+            return;
+        }
+
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.font == null) {
+            return;
+        }
+
+        Font font = minecraft.font;
+        int width = minecraft.getWindow().getGuiScaledWidth();
+        int height = minecraft.getWindow().getGuiScaledHeight();
+        MapView mapView = mapView(screen, width, height);
+        boolean displayEnabled = StormOverlayData.isDisplayEnabled();
+        boolean dualModeActive = displayEnabled && StormOverlayData.isDualModeEnabled() && mapView != null;
+        List<StormOverlayData.RadarSiteView> radarSites = mapView == null
+                ? List.of()
+                : StormOverlayData.radarSiteViews(mapView.dimension());
+        BottomControlsLayout controls = bottomControlsLayout(font, width, height);
+        BottomControlsLayout activeControls = controls;
+        ToolsButtonLayout tools = toolsButtonLayout(width, height);
+
+        RenderSystem.disableDepthTest();
+        guiGraphics.pose().pushPose();
+        try {
+            guiGraphics.pose().last().pose().identity();
+            guiGraphics.pose().translate(0.0F, 0.0F, 700.0F);
+            toolsButtonLeft = tools.x();
+            toolsButtonTop = tools.y();
+            toolsButtonRight = tools.x() + tools.size();
+            toolsButtonBottom = tools.y() + tools.size();
+
+            if (displayEnabled) {
+                if (dualModeActive) {
+                    activeControls = drawDualModeMapDisplays(guiGraphics, font, width, height, mapView, radarSites, mouseX, mouseY);
+                    drawDualModeXaeroLabels(guiGraphics, font, width, height);
+                } else {
+                    drawInteractiveRadarControlRow(guiGraphics, font, width, controls, mouseX, mouseY);
+                }
+            } else {
+                buttonLeft = 0;
+                buttonTop = 0;
+                buttonRight = 0;
+                buttonBottom = 0;
+                modeLeft = 0;
+                modeTop = 0;
+                modeRight = 0;
+                modeBottom = 0;
+                modeControlBounds = List.of();
+                displayControlBounds = List.of();
+                modeMenuOpen = false;
+                clearModeMenuBounds();
+                resetModeMenuAnimation();
+                resetModeChangeAnimation();
+            }
+            drawRadarToolsButton(guiGraphics, tools.x(), tools.y(), tools.size(), displayEnabled);
+        } finally {
+            guiGraphics.pose().popPose();
+            RenderSystem.enableDepthTest();
+        }
+
+        if (displayEnabled) {
+            buttonLeft = activeControls.buttonX();
+            buttonTop = activeControls.buttonY();
+            buttonRight = activeControls.buttonX() + activeControls.buttonWidth();
+            buttonBottom = activeControls.buttonY() + activeControls.buttonHeight();
+
+            modeLeft = activeControls.modeLeft();
+            modeTop = activeControls.modeTop();
+            modeRight = activeControls.modeRight();
+            modeBottom = activeControls.modeBottom();
+        }
+    }
+
     public static void render(ScreenEvent.Render.Post event) {
         Screen screen = event.getScreen();
         if (!isWorldMap(screen) || isHiddenUi(screen)) {
@@ -363,26 +490,19 @@ public final class WorldMapRadarLegendOverlay {
         List<StormOverlayData.RadarSiteView> radarSites = mapView == null || (!displayEnabled && !radarLocationsVisible)
                 ? List.of()
                 : StormOverlayData.radarSiteViews(mapView.dimension());
-        BottomControlsLayout controls = bottomControlsLayout(font, width, height);
-        BottomControlsLayout activeControls = controls;
         ToolsButtonLayout tools = toolsButtonLayout(width, height);
         boolean dualModeActive = displayEnabled && StormOverlayData.isDualModeEnabled() && mapView != null;
 
-        if (mapView != null && radarLocationsVisible && !dualModeActive) {
+        if (mapView != null && radarLocationsVisible && !dualModeActive && displayEnabled) {
             guiGraphics.pose().pushPose();
             try {
                 guiGraphics.pose().last().pose().identity();
                 guiGraphics.pose().translate(0.0F, 0.0F, 420.0F);
-                if (displayEnabled) {
-                    drawLightningStrikes(guiGraphics, mapView, radarSites, StormOverlayData.lightningStrikeViews(mapView.dimension()));
-                }
-                drawStationLabels(guiGraphics, font, mapView, radarSites);
+                drawLightningStrikes(guiGraphics, mapView, radarSites, StormOverlayData.lightningStrikeViews(mapView.dimension()));
                 guiGraphics.flush();
             } finally {
                 guiGraphics.pose().popPose();
             }
-        } else {
-            stationLabelBounds = List.of();
         }
         if (dualModeActive) {
             if (!dualModeScreenTextureReady) {
@@ -394,77 +514,33 @@ public final class WorldMapRadarLegendOverlay {
         }
         radarLayerRenderedThisFrame = false;
 
-        RenderSystem.disableDepthTest();
-        guiGraphics.pose().pushPose();
-        try {
-            guiGraphics.pose().translate(0.0F, 0.0F, 700.0F);
-            toolsButtonLeft = tools.x();
-            toolsButtonTop = tools.y();
-            toolsButtonRight = tools.x() + tools.size();
-            toolsButtonBottom = tools.y() + tools.size();
-
-            if (displayEnabled) {
-                if (dualModeActive) {
-                    activeControls = drawDualModeMapDisplays(guiGraphics, font, width, height, mapView, radarSites, event.getMouseX(), event.getMouseY());
-                    drawDualModeXaeroLabels(guiGraphics, font, width, height);
-                } else {
-                    drawInteractiveRadarControlRow(guiGraphics, font, width, controls, event.getMouseX(), event.getMouseY());
-                }
-            } else {
-                buttonLeft = 0;
-                buttonTop = 0;
-                buttonRight = 0;
-                buttonBottom = 0;
-                modeLeft = 0;
-                modeTop = 0;
-                modeRight = 0;
-                modeBottom = 0;
-                modeControlBounds = List.of();
-                displayControlBounds = List.of();
-                modeMenuOpen = false;
-                clearModeMenuBounds();
-                resetModeMenuAnimation();
-                resetModeChangeAnimation();
-            }
-            drawRadarToolsButton(guiGraphics, tools.x(), tools.y(), tools.size(), displayEnabled);
-
-            if (settingsOpen || radarToolsCloseAnimationActive) {
-                guiGraphics.pose().pushPose();
-                try {
-                    guiGraphics.pose().translate(0.0F, 0.0F, 300.0F);
-                    if (settingsOpen) {
-                        double animationProgress = updateRadarToolsOpenAnimation();
-                        double panelAlpha = radarToolsPanelAlpha(animationProgress);
-                        if (panelAlpha > 0.0D) {
-                            drawSettingsModal(guiGraphics, font, width, height, panelAlpha, event.getMouseX(), event.getMouseY());
-                        } else {
-                            clearSettingsBounds();
-                        }
-                        drawRadarToolsOpenAnimation(guiGraphics, width, height, tools.size(), animationProgress);
+        // The radar bar, mode select and tools button are now drawn earlier, from inside Xaero's
+        // own render pass (see drawPersistentControlsBeforeXaeroPopups), so that Xaero's own
+        // right-click menu - drawn near the end of its render pass - ends up on top of them
+        // instead of hidden behind them. Only the settings modal (opened via the tools button)
+        // still draws here, since a modal is expected to stay on top of everything when open.
+        if (settingsOpen || radarToolsCloseAnimationActive) {
+            RenderSystem.disableDepthTest();
+            guiGraphics.pose().pushPose();
+            try {
+                guiGraphics.pose().translate(0.0F, 0.0F, 1000.0F);
+                if (settingsOpen) {
+                    double animationProgress = updateRadarToolsOpenAnimation();
+                    double panelAlpha = radarToolsPanelAlpha(animationProgress);
+                    if (panelAlpha > 0.0D) {
+                        drawSettingsModal(guiGraphics, font, width, height, panelAlpha, event.getMouseX(), event.getMouseY());
                     } else {
-                        double animationProgress = updateRadarToolsCloseAnimation();
-                        drawRadarToolsCloseAnimation(guiGraphics, font, width, height, tools, animationProgress);
+                        clearSettingsBounds();
                     }
-                } finally {
-                    guiGraphics.pose().popPose();
+                    drawRadarToolsOpenAnimation(guiGraphics, width, height, tools.size(), animationProgress);
+                } else {
+                    double animationProgress = updateRadarToolsCloseAnimation();
+                    drawRadarToolsCloseAnimation(guiGraphics, font, width, height, tools, animationProgress);
                 }
+            } finally {
+                guiGraphics.pose().popPose();
+                RenderSystem.enableDepthTest();
             }
-
-        } finally {
-            guiGraphics.pose().popPose();
-            RenderSystem.enableDepthTest();
-        }
-
-        if (displayEnabled) {
-            buttonLeft = activeControls.buttonX();
-            buttonTop = activeControls.buttonY();
-            buttonRight = activeControls.buttonX() + activeControls.buttonWidth();
-            buttonBottom = activeControls.buttonY() + activeControls.buttonHeight();
-
-            modeLeft = activeControls.modeLeft();
-            modeTop = activeControls.modeTop();
-            modeRight = activeControls.modeRight();
-            modeBottom = activeControls.modeBottom();
         }
     }
 
@@ -613,7 +689,6 @@ public final class WorldMapRadarLegendOverlay {
         if (setModeForTarget(target, nextMode)) {
             applyModeChangeAnimation(target, previousMode, modeForTarget(target), MODE_MENU_SCROLL_CHANGE_ANIMATION_SECONDS, rotateUp);
             clearRadarTextures();
-            XaeroStormOverlayRegistrar.tick(true, false);
         }
 
         event.setCanceled(true);
@@ -680,7 +755,6 @@ public final class WorldMapRadarLegendOverlay {
             if (settingsMenuPage == SettingsMenuPage.MAIN && isInsideMenuBounds(mouseX, mouseY, radarLocationsLeft, radarLocationsTop, radarLocationsRight, radarLocationsBottom)) {
                 StormOverlayData.toggleRadarLocationsAlwaysVisible();
                 clearRadarTextures();
-                XaeroStormOverlayRegistrar.tick(true, true);
                 event.setCanceled(true);
                 return;
             }
@@ -759,7 +833,6 @@ public final class WorldMapRadarLegendOverlay {
 
             if (!StormOverlayData.selectedRadarSiteMatches(bounds.pos()) && StormOverlayData.selectRadarSite(bounds.pos())) {
                 clearRadarTextures();
-                XaeroStormOverlayRegistrar.tick(true, true);
             }
 
             event.setCanceled(true);
@@ -806,7 +879,6 @@ public final class WorldMapRadarLegendOverlay {
         modeMenuOpen = false;
         clearModeMenuBounds();
         stationLabelBounds = List.of();
-        XaeroStormOverlayRegistrar.tick(true, true);
     }
 
     private static void toggleRadarToolsMenu() {
@@ -1190,36 +1262,6 @@ public final class WorldMapRadarLegendOverlay {
         return Math.max(0, split + dualModeCenterBlackLineHeight(height, split) + DUAL_MAP_LOWER_PANEL_Y_OFFSET);
     }
 
-    public static void flushXaeroMinimapRenderBuffers() {
-        try {
-            Class<?> sessionClass = Class.forName("xaero.common.XaeroMinimapSession");
-            Object session = sessionClass.getMethod("getCurrentSession").invoke(null);
-            if (session == null) {
-                return;
-            }
-
-            Object modMain = sessionClass.getMethod("getModMain").invoke(session);
-            if (modMain == null) {
-                return;
-            }
-
-            Object interfaceRenderer = modMain.getClass().getMethod("getInterfaceRenderer").invoke(modMain);
-            if (interfaceRenderer == null) {
-                return;
-            }
-
-            Object vertexConsumers = interfaceRenderer.getClass().getMethod("getCustomVertexConsumers").invoke(interfaceRenderer);
-            if (vertexConsumers == null) {
-                return;
-            }
-
-            Object buffers = vertexConsumers.getClass().getMethod("getBetterPVPRenderTypeBuffers").invoke(vertexConsumers);
-            if (buffers instanceof BufferSource bufferSource) {
-                bufferSource.endBatch();
-            }
-        } catch (ReflectiveOperationException | RuntimeException ignored) {
-        }
-    }
 
     public static void enableDualModeMainMapScissor() {
         if (!shouldTransformXaeroDualModeMap()) {
@@ -1546,6 +1588,7 @@ public final class WorldMapRadarLegendOverlay {
         }
 
         List<StationLabelBounds> bounds = new ArrayList<>();
+        clearGuiDepthBeforeOverlay(guiGraphics);
         drawDualModeStationLabelsForPanel(guiGraphics, font, panels.upper(), sourceView, radarSites, bounds);
         drawDualModeStationLabelsForPanel(guiGraphics, font, panels.lower(), sourceView, radarSites, bounds);
         stationLabelBounds = List.copyOf(bounds);
@@ -2117,7 +2160,6 @@ public final class WorldMapRadarLegendOverlay {
             if (setModeForTarget(target, bounds.mode())) {
                 applyModeChangeAnimation(target, previousMode, modeForTarget(target), MODE_MENU_CLICK_CHANGE_ANIMATION_SECONDS, rotateUp);
                 clearRadarTextures();
-                XaeroStormOverlayRegistrar.tick(true, false);
             }
 
             return true;
@@ -3086,7 +3128,7 @@ public final class WorldMapRadarLegendOverlay {
             StormOverlayData.RadarMode mode,
             int stateHash
     ) {
-        int textureSize = radarTextureSize();
+        int textureSize = radarTextureSize(site);
         RadarTextureKey key = new RadarTextureKey(site.pos(), mode);
         SiteTextureCache existing = radarTextures.get(key);
         if (existing != null && existing.matches(site.pos(), stateHash, textureSize)) {
@@ -3118,8 +3160,14 @@ public final class WorldMapRadarLegendOverlay {
         return existing;
     }
 
-    private static int radarTextureSize() {
-        int textureSize = ClientConfig.radarResolution > 0 ? ClientConfig.radarResolution : DEFAULT_RADAR_TEXTURE_SIZE;
+    private static int radarTextureSize(StormOverlayData.RadarSiteView site) {
+        int baseSize = ClientConfig.radarResolution > 0 ? ClientConfig.radarResolution : DEFAULT_RADAR_TEXTURE_SIZE;
+        // A range-upgraded tower covers a larger radius (currently up to 4x). Scale the
+        // texture's pixel dimensions by the same factor so blocks-per-pixel - and therefore
+        // how detailed the storms look - stays consistent whether or not a tower is upgraded.
+        // MIN/MAX_RADAR_TEXTURE_SIZE below still cap the cost of very large textures.
+        double scale = site.radiusBlocks() / BASE_RADAR_RADIUS_BLOCKS;
+        int textureSize = (int) Math.round(baseSize * scale);
         return clampInt(textureSize, MIN_RADAR_TEXTURE_SIZE, MAX_RADAR_TEXTURE_SIZE);
     }
 
@@ -3210,19 +3258,6 @@ public final class WorldMapRadarLegendOverlay {
         int green = (argb >>> 8) & 0xFF;
         int blue = argb & 0xFF;
         return (alpha << 24) | (blue << 16) | (green << 8) | red;
-    }
-
-    private static int radarBlockTextureArgb(int argb) {
-        int alpha = (argb >>> 24) & 0xFF;
-        if (alpha == 0) {
-            return 0;
-        }
-
-        float brightness = alpha / 255.0F * 0.75F + 0.25F;
-        int red = clampInt(Math.round(((argb >>> 16) & 0xFF) * brightness), 0, 255);
-        int green = clampInt(Math.round(((argb >>> 8) & 0xFF) * brightness), 0, 255);
-        int blue = clampInt(Math.round((argb & 0xFF) * brightness), 0, 255);
-        return 0xFF000000 | (red << 16) | (green << 8) | blue;
     }
 
     private static void drawLightningStrikes(
@@ -3796,12 +3831,9 @@ public final class WorldMapRadarLegendOverlay {
     private static int legendColorFor(StormOverlayData.RadarMode mode, float amount) {
         float normalized = (float) clamp(amount, 0.0F, 1.0F);
         Color color = switch (mode) {
-            case REFLECTIVITY -> brighten(
-                    ColorTables.getReflectivity(
-                            REFLECTIVITY_LEGEND_MIN_DBZ + normalized * (REFLECTIVITY_LEGEND_MAX_DBZ - REFLECTIVITY_LEGEND_MIN_DBZ),
-                            REFLECTIVITY_BASE
-                    ),
-                    1.2F
+            case REFLECTIVITY -> ColorTables.getReflectivity(
+                    REFLECTIVITY_LEGEND_MIN_DBZ + normalized * (REFLECTIVITY_LEGEND_MAX_DBZ - REFLECTIVITY_LEGEND_MIN_DBZ),
+                    REFLECTIVITY_BASE
             );
             case VELOCITY -> {
                 float velocity = -VELOCITY_LEGEND_MAX_MPH + normalized * VELOCITY_LEGEND_MAX_MPH * 2.0F;
@@ -3815,41 +3847,18 @@ public final class WorldMapRadarLegendOverlay {
 
     private static Color correlationCoefficientLegendColor(float coefficient) {
         float cc = CORRELATION_MIN + (float) clamp(coefficient, 0.0F, 1.0F) * (CORRELATION_MAX - CORRELATION_MIN);
-        Color color = new Color(0x1E1E1E);
-        color = ColorTables.lerp(correlationStep(cc, 0.208F, 0.330F), color, new Color(0x2C2B30));
-        color = ColorTables.lerp(correlationStep(cc, 0.330F, 0.455F), color, new Color(0x94939B));
-        color = ColorTables.lerp(correlationStep(cc, 0.455F, 0.505F), color, new Color(0xE8E8F0));
-        color = ColorTables.lerp(correlationStep(cc, 0.505F, 0.560F), color, new Color(0x80809A));
-        color = ColorTables.lerp(correlationStep(cc, 0.560F, 0.650F), color, new Color(0x353491));
-        color = ColorTables.lerp(correlationStep(cc, 0.650F, 0.720F), color, new Color(0x0E0AB9));
-        color = ColorTables.lerp(correlationStep(cc, 0.720F, 0.770F), color, new Color(0x322FD6));
-        color = ColorTables.lerp(correlationStep(cc, 0.770F, 0.805F), color, new Color(0x817ED9));
-        color = ColorTables.lerp(correlationStep(cc, 0.805F, 0.835F), color, new Color(0x73C19A));
-        color = ColorTables.lerp(correlationStep(cc, 0.835F, 0.865F), color, new Color(0x5EFC50));
-        color = ColorTables.lerp(correlationStep(cc, 0.865F, 0.895F), color, new Color(0xA0CD01));
-        color = ColorTables.lerp(correlationStep(cc, 0.895F, 0.925F), color, new Color(0xE2C500));
-        color = ColorTables.lerp(correlationStep(cc, 0.925F, 0.950F), color, new Color(0xFF4A00));
-        color = ColorTables.lerp(correlationStep(cc, 0.950F, 0.970F), color, new Color(0xCF0805));
-        color = ColorTables.lerp(correlationStep(cc, 0.970F, 0.990F), color, new Color(0x970546));
-        color = ColorTables.lerp(correlationStep(cc, 0.990F, 1.010F), color, new Color(0xAE2E78));
-        color = ColorTables.lerp(correlationStep(cc, 1.010F, 1.030F), color, new Color(0xE998C1));
-        return ColorTables.lerp(correlationStep(cc, 1.030F, CORRELATION_MAX), color, new Color(0xFFFFFF));
-    }
-
-    private static float correlationStep(float value, float low, float high) {
-        return (float) clamp((value - low) / (high - low), 0.0F, 1.0F);
-    }
-
-    private static Color brighten(Color color, float factor) {
-        return new Color(
-                Math.min(255, Math.round(color.getRed() * factor)),
-                Math.min(255, Math.round(color.getGreen() * factor)),
-                Math.min(255, Math.round(color.getBlue() * factor))
-        );
+        return StormOverlayData.colorForCorrelationCoefficient(cc);
     }
 
     private static void drawPlainString(GuiGraphics guiGraphics, Font font, String text, int x, int y, int color) {
         guiGraphics.drawString(font, text, x, y, color, false);
+    }
+
+    private static void clearGuiDepthBeforeOverlay(GuiGraphics guiGraphics) {
+        guiGraphics.flush();
+        RenderSystem.depthMask(true);
+        RenderSystem.disableDepthTest();
+        GL11.glClear(GL11.GL_DEPTH_BUFFER_BIT);
     }
 
     private static void drawScaledPlainString(
@@ -5498,7 +5507,7 @@ public final class WorldMapRadarLegendOverlay {
             int modeHeight,
             float modeScale,
             String modeText,
-        StormOverlayData.RadarMode mode
+            StormOverlayData.RadarMode mode
     ) {
         private int modeLeft() {
             return (int) Math.floor(modeBoxLeft) - 3;
@@ -5556,7 +5565,7 @@ public final class WorldMapRadarLegendOverlay {
                     double normalX = (x / (double) size) * 2.0D - 1.0D;
                     double blockX = site.x() + normalX * site.radiusBlocks();
                     double blockZ = site.z() + normalZ * site.radiusBlocks();
-                    int color = radarBlockTextureArgb(StormOverlayData.argbForRadarSiteTexture(dimension, site.pos(), blockX, blockZ, mode));
+                    int color = StormOverlayData.argbForRadarSiteTexture(dimension, site.pos(), blockX, blockZ, mode);
                     if ((color >>> 24) == 0) {
                         continue;
                     }

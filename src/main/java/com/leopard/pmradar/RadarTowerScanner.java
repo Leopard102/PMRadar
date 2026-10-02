@@ -17,6 +17,32 @@ public final class RadarTowerScanner {
         return state.getBlock() instanceof WSR88DCore;
     }
 
+    public static boolean hasRangeUpgrade(Level level, BlockPos corePos) {
+        if (!(level.getBlockState(corePos).getBlock() instanceof WSR88DCore core)) {
+            return false;
+        }
+
+        int shellBottomOffset = 0;
+        for (Map.Entry<BlockPos, Block> entry : core.getStructure().entrySet()) {
+            if (entry.getValue() == ModBlocks.RADOME.get()) {
+                shellBottomOffset = Math.min(shellBottomOffset, entry.getKey().getY());
+            }
+        }
+
+        if (shellBottomOffset == 0) {
+            shellBottomOffset = -3;
+        }
+
+        for (int dy = -1; dy >= shellBottomOffset; dy--) {
+            BlockPos pos = corePos.offset(0, dy, 0);
+            if (hasChunkAt(level, pos) && level.getBlockState(pos).is(ModBlocks.RANGE_UPGRADE_MODULE.get())) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static TowerState stateAt(Level level, BlockPos corePos) {
         try {
             BlockState coreState = level.getBlockState(corePos);

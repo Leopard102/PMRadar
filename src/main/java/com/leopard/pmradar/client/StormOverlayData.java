@@ -7,6 +7,7 @@ import dev.protomanly.pmweather.block.entity.RadarBlockEntity;
 import dev.protomanly.pmweather.config.ServerConfig;
 import dev.protomanly.pmweather.entity.MovingBlock;
 import dev.protomanly.pmweather.event.GameBusClientEvents;
+import dev.protomanly.pmweather.multiblock.wsr88d.WSR88DCore;
 import dev.protomanly.pmweather.particle.EntityRotFX;
 import dev.protomanly.pmweather.util.ColorTables;
 import dev.protomanly.pmweather.weather.Clouds;
@@ -23,6 +24,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.BlockTags;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -51,8 +53,9 @@ public final class StormOverlayData {
     private static final int REGION_SIZE_CHUNKS = 8;
     private static final int MAX_LOADED_AREA_RADIUS_CHUNKS = 12;
     private static final int RADAR_SITE_VALIDATION_RADIUS_CHUNKS = 8;
-    private static final int RADAR_DISPLAY_SEARCH_RADIUS_XZ_BLOCKS = 128;
-    private static final int RADAR_DISPLAY_SEARCH_RADIUS_Y_BLOCKS = 64;
+    // Fallback depth (blocks straight down from the core) used to look for a range-upgrade
+    // module only if the tower's structure data reports no radome shell below the core.
+    private static final int RANGE_UPGRADE_FALLBACK_SEARCH_DEPTH_BLOCKS = 3;
     private static final int SITE_SCAN_INTERVAL_TICKS = 20;
     private static final int RADAR_FRAME_INTERVAL_TICKS = 20;
     private static final int LIGHTNING_MARKER_LIFETIME_TICKS = 20 * 30;
@@ -61,9 +64,8 @@ public final class StormOverlayData {
     private static final double RADAR_BLIND_SPOT_RADIUS_BLOCKS = 48.0D;
     private static final float MIN_VISIBLE_DBZ = 3.0F;
     private static final float MAX_VISIBLE_DBZ = 70.0F;
-    private static final float CORRELATION_MIN = 0.208F;
-    private static final float CORRELATION_MAX = 1.048F;
-    private static final float VELOCITY_COLOR_MAX_MPH = 140.0F;
+    public static final float CORRELATION_MIN = 0.20F;
+    public static final float CORRELATION_MAX = 1.05F;
     private static final int MIN_DEBRIS_MOVING_BLOCKS = 1;
     private static final int MIN_DEBRIS_PARTICLE_CLUSTER_COUNT = 6;
     private static final int MIN_DEBRIS_PARTICLE_BOOST_COUNT = 6;
@@ -72,97 +74,21 @@ public final class StormOverlayData {
     private static final int RADAR_SITE_MARKER_COLOR = 0xFFC850E0;
     private static final int BROKEN_RADAR_SITE_MARKER_COLOR = 0xFFFF3030;
     private static final Color REFLECTIVITY_BASE = new Color(12, 28, 32);
-    // Immutable color stops reused for every radar sample.
+    // NOAA WSR-88D 2620003R, section 49.2.2: recommended CC bins and RGB values.
+    private static final float[] CORRELATION_THRESHOLDS = {
+            0.20F, 0.45F, 0.65F, 0.75F, 0.80F, 0.85F, 0.90F,
+            0.93F, 0.95F, 0.96F, 0.97F, 0.98F, 0.99F, 1.00F
+    };
     private static final Color[] CORRELATION_COLORS = {
-        new Color(0x1E1E1E),
-        new Color(0x2C2B30),
-        new Color(0x94939B),
-        new Color(0xE8E8F0),
-        new Color(0x80809A),
-        new Color(0x353491),
-        new Color(0x0E0AB9),
-        new Color(0x322FD6),
-        new Color(0x817ED9),
-        new Color(0x73C19A),
-        new Color(0x5EFC50),
-        new Color(0xA0CD01),
-        new Color(0xE2C500),
-        new Color(0xFF4A00),
-        new Color(0xCF0805),
-        new Color(0x970546),
-        new Color(0xAE2E78),
-        new Color(0xE998C1),
-        new Color(0xFFFFFF)
+            new Color(0x95949C), new Color(0x16148C), new Color(0x0902D9),
+            new Color(0x8987D6), new Color(0x5CFF59), new Color(0x8BCF02),
+            new Color(0xFFFB00), new Color(0xFFC400), new Color(0xFF8903),
+            new Color(0xFF2B00), new Color(0xE30000), new Color(0xA10000),
+            new Color(0x970556), new Color(0xFAACD1)
     };
     private static final String STATION_CODE_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     private static final int STATION_CODE_RANDOM_ATTEMPTS = 128;
     private static final Random STATION_CODE_RANDOM = new Random();
-    private static final float[] VELOCITY_COLOR_POSITIONS = {
-            0.000000F,
-            0.006593F,
-            0.041758F,
-            0.076923F,
-            0.112088F,
-            0.147253F,
-            0.182418F,
-            0.217582F,
-            0.252747F,
-            0.287912F,
-            0.323077F,
-            0.358242F,
-            0.393407F,
-            0.428571F,
-            0.463736F,
-            0.498901F,
-            0.534066F,
-            0.569231F,
-            0.604396F,
-            0.639560F,
-            0.674725F,
-            0.709890F,
-            0.745055F,
-            0.780220F,
-            0.815385F,
-            0.850549F,
-            0.885714F,
-            0.920879F,
-            0.956044F,
-            0.991209F,
-            1.000000F
-    };
-    private static final int[] VELOCITY_COLOR_RGB = {
-            0xF80185,
-            0xF30087,
-            0xBB028C,
-            0x870496,
-            0x3D049B,
-            0x1226A6,
-            0x1D85C6,
-            0x34E1DD,
-            0x6CE7EA,
-            0xA8EDF2,
-            0x58F672,
-            0x06E805,
-            0x03B908,
-            0x018C00,
-            0x3C7639,
-            0x737F71,
-            0x8B4654,
-            0x8A0000,
-            0xBA0003,
-            0xE2040E,
-            0xFB5C8B,
-            0xFA8CCC,
-            0xFEE1AC,
-            0xFCCA88,
-            0xFD9F5C,
-            0xE87A46,
-            0xC95D37,
-            0xAF4326,
-            0x902715,
-            0x6F0E08,
-            0x510401
-    };
     private static final double[][] CHUNK_SAMPLE_OFFSETS = {
             {2.0D, 8.0D},
             {8.0D, 8.0D},
@@ -908,7 +834,14 @@ public final class StormOverlayData {
                 continue;
             }
 
-            RadarSite next = radarSiteForTower(level, pos, syncedSite.operational());
+            RadarSite next = radarSiteForTower(
+                    level,
+                    pos,
+                    syncedSite.operational(),
+                    null,
+                    null,
+                    syncedSite.rangeUpgraded()
+            );
             RadarSite previous = rememberedRadarSites.put(pos, next);
             changed |= previous == null || !previous.equals(next);
         }
@@ -1189,6 +1122,17 @@ public final class StormOverlayData {
             String preferredStationCode,
             Set<String> reservedStationCodes
     ) {
+        return radarSiteForTower(level, pos, operational, preferredStationCode, reservedStationCodes, null);
+    }
+
+    private static RadarSite radarSiteForTower(
+            Level level,
+            BlockPos pos,
+            boolean operational,
+            String preferredStationCode,
+            Set<String> reservedStationCodes,
+            Boolean rangeUpgradeOverride
+    ) {
         BlockPos immutable = pos.immutable();
         RadarSite existing = rememberedRadarSites.get(immutable);
         String stationCode = existing == null ? preferredStationCode : existing.stationCode();
@@ -1206,102 +1150,49 @@ public final class StormOverlayData {
             reservedStationCodes.add(stationCode);
         }
 
-        BlockPos radarDisplayPos = level == null ? null : nearestRadarDisplayBlock(level, immutable);
-        Vec3 center = radarDisplayPos == null ? immutable.getCenter() : radarDisplayPos.getCenter();
-        double radiusBlocks = radarDisplayPos != null && hasRangeUpgrade(level, radarDisplayPos)
+        // The tower's marker on the map always sits on the WSR-88D core itself. A nearby
+        // "Radar" display block is a separate in-world screen and must never relocate or
+        // otherwise stand in for the actual radar station.
+        Vec3 center = immutable.getCenter();
+        boolean rangeUpgraded = rangeUpgradeOverride != null
+                ? rangeUpgradeOverride
+                : level != null && hasRangeUpgrade(level, immutable);
+        double radiusBlocks = rangeUpgraded
                 ? BASE_RADAR_RADIUS_BLOCKS * 4.0D
                 : BASE_RADAR_RADIUS_BLOCKS;
         return RadarSite.tower(immutable, center, radiusBlocks, operational, stationCode);
     }
 
-    private static BlockPos nearestRadarDisplayBlock(Level level, BlockPos towerPos) {
-        int minChunkX = Math.floorDiv(towerPos.getX() - RADAR_DISPLAY_SEARCH_RADIUS_XZ_BLOCKS, 16);
-        int maxChunkX = Math.floorDiv(towerPos.getX() + RADAR_DISPLAY_SEARCH_RADIUS_XZ_BLOCKS, 16);
-        int minChunkZ = Math.floorDiv(towerPos.getZ() - RADAR_DISPLAY_SEARCH_RADIUS_XZ_BLOCKS, 16);
-        int maxChunkZ = Math.floorDiv(towerPos.getZ() + RADAR_DISPLAY_SEARCH_RADIUS_XZ_BLOCKS, 16);
-        int minY = towerPos.getY() - RADAR_DISPLAY_SEARCH_RADIUS_Y_BLOCKS;
-        int maxY = towerPos.getY() + RADAR_DISPLAY_SEARCH_RADIUS_Y_BLOCKS;
-        int minX = towerPos.getX() - RADAR_DISPLAY_SEARCH_RADIUS_XZ_BLOCKS;
-        int maxX = towerPos.getX() + RADAR_DISPLAY_SEARCH_RADIUS_XZ_BLOCKS;
-        int minZ = towerPos.getZ() - RADAR_DISPLAY_SEARCH_RADIUS_XZ_BLOCKS;
-        int maxZ = towerPos.getZ() + RADAR_DISPLAY_SEARCH_RADIUS_XZ_BLOCKS;
-        BlockPos bestPos = null;
-        double bestDistanceSqr = Double.MAX_VALUE;
+    /**
+     * A range-upgrade module only boosts a tower's radius while it sits directly beneath the
+     * WSR-88D core, inside the radome shell - not merely somewhere near a "Radar" block.
+     * The shell's vertical extent is read from the core's own structure data so this works
+     * regardless of exactly how tall the built radome is.
+     */
+    private static boolean hasRangeUpgrade(Level level, BlockPos corePos) {
+        if (!(level.getBlockState(corePos).getBlock() instanceof WSR88DCore core)) {
+            return false;
+        }
 
-        for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
-            for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
-                if (!level.hasChunk(chunkX, chunkZ)) {
-                    continue;
-                }
-
-                LevelChunk chunk = level.getChunk(chunkX, chunkZ);
-                LevelChunkSection[] sections = chunk.getSections();
-                int blockX = chunk.getPos().x << 4;
-                int blockZ = chunk.getPos().z << 4;
-                int minLocalX = Math.max(0, minX - blockX);
-                int maxLocalX = Math.min(15, maxX - blockX);
-                int minLocalZ = Math.max(0, minZ - blockZ);
-                int maxLocalZ = Math.min(15, maxZ - blockZ);
-
-                for (int sectionIndex = 0; sectionIndex < sections.length; sectionIndex++) {
-                    LevelChunkSection section = sections[sectionIndex];
-                    if (section == null || section.hasOnlyAir() || !section.maybeHas(StormOverlayData::isRadarDisplayBlock)) {
-                        continue;
-                    }
-
-                    int blockY = level.getSectionYFromSectionIndex(sectionIndex) << 4;
-                    if (blockY > maxY || blockY + 15 < minY) {
-                        continue;
-                    }
-
-                    int minLocalY = Math.max(0, minY - blockY);
-                    int maxLocalY = Math.min(15, maxY - blockY);
-                    for (int localY = minLocalY; localY <= maxLocalY; localY++) {
-                        for (int localX = minLocalX; localX <= maxLocalX; localX++) {
-                            for (int localZ = minLocalZ; localZ <= maxLocalZ; localZ++) {
-                                BlockState blockState = section.getBlockState(localX, localY, localZ);
-                                if (!isRadarDisplayBlock(blockState)) {
-                                    continue;
-                                }
-
-                                int x = blockX + localX;
-                                int y = blockY + localY;
-                                int z = blockZ + localZ;
-                                double dx = x - towerPos.getX();
-                                double dy = y - towerPos.getY();
-                                double dz = z - towerPos.getZ();
-                                double distanceSqr = dx * dx + dy * dy + dz * dz;
-                                if (distanceSqr < bestDistanceSqr) {
-                                    bestDistanceSqr = distanceSqr;
-                                    bestPos = new BlockPos(x, y, z);
-                                }
-                            }
-                        }
-                    }
-                }
+        int shellBottomOffset = 0;
+        for (Map.Entry<BlockPos, Block> entry : core.getStructure().entrySet()) {
+            if (entry.getValue() == ModBlocks.RADOME.get()) {
+                shellBottomOffset = Math.min(shellBottomOffset, entry.getKey().getY());
             }
         }
 
-        return bestPos == null ? null : bestPos.immutable();
-    }
+        if (shellBottomOffset == 0) {
+            shellBottomOffset = -RANGE_UPGRADE_FALLBACK_SEARCH_DEPTH_BLOCKS;
+        }
 
-    private static boolean hasRangeUpgrade(Level level, BlockPos radarDisplayPos) {
-        for (int x = -1; x <= 1; x++) {
-            for (int y = -1; y <= 1; y++) {
-                for (int z = -1; z <= 1; z++) {
-                    BlockPos pos = radarDisplayPos.offset(x, y, z);
-                    if (hasChunkAt(level, pos) && level.getBlockState(pos).is(ModBlocks.RANGE_UPGRADE_MODULE.get())) {
-                        return true;
-                    }
-                }
+        for (int dy = -1; dy >= shellBottomOffset; dy--) {
+            BlockPos pos = corePos.offset(0, dy, 0);
+            if (hasChunkAt(level, pos) && level.getBlockState(pos).is(ModBlocks.RANGE_UPGRADE_MODULE.get())) {
+                return true;
             }
         }
 
         return false;
-    }
-
-    private static boolean isRadarDisplayBlock(BlockState state) {
-        return state.is(ModBlocks.RADAR.get());
     }
 
     private static boolean hasChunkAt(Level level, BlockPos pos) {
@@ -1562,7 +1453,7 @@ public final class StormOverlayData {
         }
 
         int color = colorForReflectivity(radarDbz);
-        return new RadarReturn((color & 0xFFFFFF00) | rangeAdjustedAlpha(site, blockX, blockZ, radarDbz), radarDbz, radarDbz);
+        return new RadarReturn(color, radarDbz, radarDbz);
     }
 
     private static RadarReturn velocityReturn(RadarState current, RadarSite site, double blockX, double blockZ, float radarDbz) {
@@ -1573,8 +1464,11 @@ public final class StormOverlayData {
 
         float velocity = radialVelocity(current, site, blockX, blockZ);
         float displayVelocity = velocity / 1.75F;
-        int rgb = rgbForVelocity(displayVelocity);
-        int alpha = rangeAdjustedAlpha(site, blockX, blockZ, radarDbz);
+        // Express PMWeather's weak-return weighting as coverage over the map,
+        // keeping the palette RGB intact instead of blending it toward black.
+        float strength = clamp(Math.max(radarDbz, (Math.abs(displayVelocity) - 90.0F) / 1.5F) / 15.0F, 0.0F, 1.0F);
+        int rgb = colorForVelocity(displayVelocity).getRGB();
+        int alpha = Math.round(255.0F * strength);
         return new RadarReturn(xaeroColor(red(rgb), green(rgb), blue(rgb), alpha), velocity, radarDbz);
     }
 
@@ -1611,7 +1505,7 @@ public final class StormOverlayData {
             coefficient = Math.min(coefficient, debrisCoefficient);
         }
 
-        return clamp(coefficient, CORRELATION_MIN, CORRELATION_MAX);
+        return clamp(coefficient, CORRELATION_MIN, 1.0F);
     }
 
     private static float tornadoDebrisSignatureAt(RadarState current, double blockX, double blockZ, float radarDbz) {
@@ -2093,7 +1987,9 @@ public final class StormOverlayData {
     }
 
     private static int colorForReflectivity(float dbz, float temperature, boolean hasRangeUpgrade) {
-        Color color = ColorTables.getReflectivity(dbz, REFLECTIVITY_BASE);
+        // PMWeather blends weak echoes into terrain. Use coverage over Xaero's terrain
+        // instead of baking a dark substitute background into those echoes.
+        Color color = ColorTables.getReflectivity(Math.max(dbz, 19.0F), REFLECTIVITY_BASE);
         if (dbz > 5.0F && !hasRangeUpgrade) {
             if (temperature < 3.0F && temperature > -1.0F) {
                 color = ColorTables.getMixedReflectivity(dbz);
@@ -2102,43 +1998,23 @@ public final class StormOverlayData {
             }
         }
 
-        color = brighten(color, 1.2F);
-        return xaeroColor(color.getRed(), color.getGreen(), color.getBlue(), alphaForStrength(dbz));
+        int coverage = Math.round(255.0F * clamp((dbz - MIN_VISIBLE_DBZ) / (19.0F - MIN_VISIBLE_DBZ), 0.0F, 1.0F));
+        return xaeroColor(color.getRed(), color.getGreen(), color.getBlue(), coverage);
     }
 
-    private static Color colorForCorrelationCoefficient(float coefficient) {
-        float cc = clamp(coefficient, CORRELATION_MIN, CORRELATION_MAX);
-        Color color = CORRELATION_COLORS[0];
-        color = ColorTables.lerp(correlationStep(cc, 0.208F, 0.330F), color, CORRELATION_COLORS[1]);
-        color = ColorTables.lerp(correlationStep(cc, 0.330F, 0.455F), color, CORRELATION_COLORS[2]);
-        color = ColorTables.lerp(correlationStep(cc, 0.455F, 0.505F), color, CORRELATION_COLORS[3]);
-        color = ColorTables.lerp(correlationStep(cc, 0.505F, 0.560F), color, CORRELATION_COLORS[4]);
-        color = ColorTables.lerp(correlationStep(cc, 0.560F, 0.650F), color, CORRELATION_COLORS[5]);
-        color = ColorTables.lerp(correlationStep(cc, 0.650F, 0.720F), color, CORRELATION_COLORS[6]);
-        color = ColorTables.lerp(correlationStep(cc, 0.720F, 0.770F), color, CORRELATION_COLORS[7]);
-        color = ColorTables.lerp(correlationStep(cc, 0.770F, 0.805F), color, CORRELATION_COLORS[8]);
-        color = ColorTables.lerp(correlationStep(cc, 0.805F, 0.835F), color, CORRELATION_COLORS[9]);
-        color = ColorTables.lerp(correlationStep(cc, 0.835F, 0.865F), color, CORRELATION_COLORS[10]);
-        color = ColorTables.lerp(correlationStep(cc, 0.865F, 0.895F), color, CORRELATION_COLORS[11]);
-        color = ColorTables.lerp(correlationStep(cc, 0.895F, 0.925F), color, CORRELATION_COLORS[12]);
-        color = ColorTables.lerp(correlationStep(cc, 0.925F, 0.950F), color, CORRELATION_COLORS[13]);
-        color = ColorTables.lerp(correlationStep(cc, 0.950F, 0.970F), color, CORRELATION_COLORS[14]);
-        color = ColorTables.lerp(correlationStep(cc, 0.970F, 0.990F), color, CORRELATION_COLORS[15]);
-        color = ColorTables.lerp(correlationStep(cc, 0.990F, 1.010F), color, CORRELATION_COLORS[16]);
-        color = ColorTables.lerp(correlationStep(cc, 1.010F, 1.030F), color, CORRELATION_COLORS[17]);
-        return ColorTables.lerp(correlationStep(cc, 1.030F, CORRELATION_MAX), color, CORRELATION_COLORS[18]);
-    }
-
-    private static float correlationStep(float value, float low, float high) {
-        return clamp((value - low) / (high - low), 0.0F, 1.0F);
-    }
-
-    private static Color brighten(Color color, float factor) {
-        return new Color(
-                Math.min(255, Math.round(color.getRed() * factor)),
-                Math.min(255, Math.round(color.getGreen() * factor)),
-                Math.min(255, Math.round(color.getBlue() * factor))
-        );
+    public static Color colorForCorrelationCoefficient(float coefficient) {
+        if (!Float.isFinite(coefficient) || coefficient < CORRELATION_MIN) {
+            return Color.BLACK;
+        }
+        // Use the NOAA levels as gradient stops for both the returns and legend.
+        for (int i = 1; i < CORRELATION_THRESHOLDS.length; i++) {
+            if (coefficient < CORRELATION_THRESHOLDS[i]) {
+                float amount = (coefficient - CORRELATION_THRESHOLDS[i - 1])
+                        / (CORRELATION_THRESHOLDS[i] - CORRELATION_THRESHOLDS[i - 1]);
+                return ColorTables.lerp(amount, CORRELATION_COLORS[i - 1], CORRELATION_COLORS[i]);
+            }
+        }
+        return CORRELATION_COLORS[CORRELATION_COLORS.length - 1];
     }
 
     private static int alphaForStrength(float strength) {
@@ -2214,37 +2090,7 @@ public final class StormOverlayData {
     }
 
     public static Color colorForVelocity(float velocity) {
-        return new Color(rgbForVelocity(velocity));
-    }
-
-    private static int rgbForVelocity(float velocity) {
-        if (Float.isNaN(velocity) || Float.isInfinite(velocity)) {
-            velocity = 0.0F;
-        }
-
-        float normalized = clamp(
-                (velocity + VELOCITY_COLOR_MAX_MPH) / (VELOCITY_COLOR_MAX_MPH * 2.0F),
-                0.0F,
-                1.0F
-        );
-        for (int i = 1; i < VELOCITY_COLOR_POSITIONS.length; i++) {
-            float right = VELOCITY_COLOR_POSITIONS[i];
-            if (normalized <= right) {
-                float left = VELOCITY_COLOR_POSITIONS[i - 1];
-                float span = Math.max(right - left, 0.0001F);
-                return lerpRgb((normalized - left) / span, VELOCITY_COLOR_RGB[i - 1], VELOCITY_COLOR_RGB[i]);
-            }
-        }
-
-        return VELOCITY_COLOR_RGB[VELOCITY_COLOR_RGB.length - 1];
-    }
-
-    private static int lerpRgb(float delta, int first, int second) {
-        float clamped = clamp(delta, 0.0F, 1.0F);
-        int red = Math.round(red(first) + (red(second) - red(first)) * clamped);
-        int green = Math.round(green(first) + (green(second) - green(first)) * clamped);
-        int blue = Math.round(blue(first) + (blue(second) - blue(first)) * clamped);
-        return (red << 16) | (green << 8) | blue;
+        return ColorTables.getVelocity(Float.isFinite(velocity) ? velocity : 0.0F);
     }
 
     private static int red(int rgb) {
@@ -2705,7 +2551,7 @@ public final class StormOverlayData {
     public record LightningStrikeView(double x, double z, float strength, float alpha) {
     }
 
-    public record SyncedRadarSite(BlockPos pos, boolean visible, boolean operational) {
+    public record SyncedRadarSite(BlockPos pos, boolean visible, boolean operational, boolean rangeUpgraded) {
     }
 
     public record SyncedDebrisCluster(long stormId, double x, double z, double radius, float strength, int count) {

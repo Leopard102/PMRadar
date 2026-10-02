@@ -36,13 +36,6 @@ config="${mod_id}.mixins.json"
     side="BOTH"
 
 [[dependencies.${mod_id}]]
-    modId="xaerominimap"
-    type="required"
-    versionRange="[0,)"
-    ordering="AFTER"
-    side="CLIENT"
-
-[[dependencies.${mod_id}]]
     modId="xaeroworldmap"
     type="required"
     versionRange="[0,)"

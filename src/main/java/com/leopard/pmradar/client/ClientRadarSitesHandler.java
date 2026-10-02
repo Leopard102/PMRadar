@@ -13,7 +13,12 @@ public final class ClientRadarSitesHandler {
     public static void handle(RadarSitesPayload payload) {
         List<StormOverlayData.SyncedRadarSite> sites = new ArrayList<>(payload.entries().size());
         for (RadarSitesPayload.Entry entry : payload.entries()) {
-            sites.add(new StormOverlayData.SyncedRadarSite(entry.pos(), entry.visible(), entry.operational()));
+            sites.add(new StormOverlayData.SyncedRadarSite(
+                    entry.pos(),
+                    entry.visible(),
+                    entry.operational(),
+                    entry.rangeUpgraded()
+            ));
         }
 
         if (StormOverlayData.applySyncedRadarSites(payload.dimension(), sites)) {

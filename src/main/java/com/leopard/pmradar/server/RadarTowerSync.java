@@ -35,7 +35,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 public final class RadarTowerSync {
     private static final int TOWER_SEARCH_RADIUS_BLOCKS = 6;
     private static final int TORNADO_DAMAGE_SEARCH_RADIUS_BLOCKS = 16;
-    private static final int RADAR_DISPLAY_SEARCH_RADIUS_BLOCKS = 128;
     private static final int PENDING_SCAN_DELAY_TICKS = 2;
     private static final int PERIODIC_SCAN_INTERVAL_TICKS = 100;
     private static final int PERIODIC_SCAN_RADIUS_CHUNKS = 12;
@@ -61,28 +60,28 @@ public final class RadarTowerSync {
     @SubscribeEvent
     public static void onBlockPlaced(BlockEvent.EntityPlaceEvent event) {
         if (isRadarStructureBlock(event.getPlacedBlock())) {
-            queueScan(event.getLevel(), event.getPos(), scanRadiusFor(event.getPlacedBlock(), TOWER_SEARCH_RADIUS_BLOCKS));
+            queueScan(event.getLevel(), event.getPos(), TOWER_SEARCH_RADIUS_BLOCKS);
         }
     }
 
     @SubscribeEvent
     public static void onBlockBroken(BlockEvent.BreakEvent event) {
         if (isRadarStructureBlock(event.getState())) {
-            queueScan(event.getLevel(), event.getPos(), scanRadiusFor(event.getState(), TOWER_SEARCH_RADIUS_BLOCKS));
+            queueScan(event.getLevel(), event.getPos(), TOWER_SEARCH_RADIUS_BLOCKS);
         }
     }
 
     @SubscribeEvent
     public static void onBlockDamaged(BlockDamageEvent event) {
         if (isRadarStructureBlock(event.getState())) {
-            queueScan(event.getLevel(), event.getPos(), scanRadiusFor(event.getState(), TORNADO_DAMAGE_SEARCH_RADIUS_BLOCKS));
+            queueScan(event.getLevel(), event.getPos(), TORNADO_DAMAGE_SEARCH_RADIUS_BLOCKS);
         }
     }
 
     @SubscribeEvent
     public static void onNeighborNotify(BlockEvent.NeighborNotifyEvent event) {
         if (isRadarStructureBlock(event.getState())) {
-            queueScan(event.getLevel(), event.getPos(), scanRadiusFor(event.getState(), TOWER_SEARCH_RADIUS_BLOCKS));
+            queueScan(event.getLevel(), event.getPos(), TOWER_SEARCH_RADIUS_BLOCKS);
         }
     }
 
@@ -105,20 +104,14 @@ public final class RadarTowerSync {
 
         for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
             scanLoadedTowersAroundPlayer(player);
+            sendKnownSites(player);
         }
     }
 
     private static boolean isRadarStructureBlock(BlockState state) {
         return RadarTowerScanner.isTowerCore(state)
                 || state.is(ModBlocks.RADOME.get())
-                || state.is(ModBlocks.RADAR.get())
                 || state.is(ModBlocks.RANGE_UPGRADE_MODULE.get());
-    }
-
-    private static int scanRadiusFor(BlockState state, int defaultRadius) {
-        return state.is(ModBlocks.RADAR.get()) || state.is(ModBlocks.RANGE_UPGRADE_MODULE.get())
-                ? RADAR_DISPLAY_SEARCH_RADIUS_BLOCKS
-                : defaultRadius;
     }
 
     private static void queueScan(LevelAccessor level, BlockPos origin) {
@@ -329,7 +322,11 @@ public final class RadarTowerSync {
             return;
         }
 
-        RadarSitesPayload.Entry next = RadarSitesPayload.Entry.visible(immutable, towerState.operational());
+        RadarSitesPayload.Entry next = RadarSitesPayload.Entry.visible(
+                immutable,
+                towerState.operational(),
+                RadarTowerScanner.hasRangeUpgrade(level, immutable)
+        );
         if (!next.equals(previous)) {
             sites.put(immutable, next);
             changes.add(next);
