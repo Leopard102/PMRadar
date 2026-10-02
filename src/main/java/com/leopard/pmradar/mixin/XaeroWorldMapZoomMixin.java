@@ -99,7 +99,6 @@ public abstract class XaeroWorldMapZoomMixin {
     )
     private void pmradar$renderRadarLayer(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks, CallbackInfo callbackInfo) {
         WorldMapRadarLegendOverlay.translateDualModeMainMapElements(guiGraphics);
-        WorldMapRadarLegendOverlay.renderRadarLayer((Screen) (Object) this, guiGraphics);
     }
 
     @Inject(
@@ -333,6 +332,7 @@ public abstract class XaeroWorldMapZoomMixin {
         }
 
         WorldMapRadarLegendOverlay.disableDualModeMainMapScissor();
+        WorldMapRadarLegendOverlay.renderRadarLayer((Screen) (Object) this, guiGraphics);
     }
 
     @Inject(

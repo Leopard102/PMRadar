@@ -58,8 +58,9 @@ public final class StormOverlayData {
     // module only if the tower's structure data reports no radome shell below the core.
     private static final int RANGE_UPGRADE_FALLBACK_SEARCH_DEPTH_BLOCKS = 3;
     private static final int SITE_SCAN_INTERVAL_TICKS = 20;
-    // PMWeather's RadarRenderer rebuilds its radar texture every 20 * 3 ticks.
-    private static final int RADAR_FRAME_INTERVAL_TICKS = 20 * 3;
+    // PMWeather updates the heavy radar/chunk calculations every 5 ticks while the radar
+    // texture is uploaded on every render frame. Client snapshots are sampled every tick.
+    private static final int RADAR_FRAME_INTERVAL_TICKS = 5;
     private static final int LIGHTNING_MARKER_LIFETIME_TICKS = 20 * 30;
     private static final long LIGHTNING_MARKER_LIFETIME_MILLIS = LIGHTNING_MARKER_LIFETIME_TICKS * 50L;
     private static final double BASE_RADAR_RADIUS_BLOCKS = 2048.0D;
