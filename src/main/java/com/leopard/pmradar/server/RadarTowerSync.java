@@ -38,14 +38,10 @@ public final class RadarTowerSync {
     private static final int TOWER_SEARCH_RADIUS_BLOCKS = 6;
     private static final int TORNADO_DAMAGE_SEARCH_RADIUS_BLOCKS = 16;
     private static final int PENDING_SCAN_DELAY_TICKS = 2;
-    private static final int PERIODIC_SCAN_INTERVAL_TICKS = 100;
-    private static final int PERIODIC_SCAN_RADIUS_CHUNKS = 12;
     private static final int MAX_PENDING_SCANS_PER_TICK = 256;
 
     private static final Map<ResourceKey<Level>, Map<BlockPos, RadarSitesPayload.Entry>> radarSites = new ConcurrentHashMap<>();
     private static final ConcurrentLinkedQueue<PendingScan> pendingScans = new ConcurrentLinkedQueue<>();
-    private static long ticks;
-
     private RadarTowerSync() {
     }
 
@@ -104,17 +100,7 @@ public final class RadarTowerSync {
 
     @SubscribeEvent
     public static void onServerTick(ServerTickEvent.Post event) {
-        long tick = ticks++;
         processPendingScans();
-
-        if (tick % PERIODIC_SCAN_INTERVAL_TICKS != 0L) {
-            return;
-        }
-
-        for (ServerPlayer player : event.getServer().getPlayerList().getPlayers()) {
-            scanLoadedTowersAroundPlayer(player);
-            sendKnownSites(player);
-        }
     }
 
     private static boolean isRadarStructureBlock(BlockState state) {
@@ -197,10 +183,11 @@ public final class RadarTowerSync {
         ServerLevel level = player.serverLevel();
         int centerChunkX = Math.floorDiv(player.getBlockX(), 16);
         int centerChunkZ = Math.floorDiv(player.getBlockZ(), 16);
-        int minChunkX = centerChunkX - PERIODIC_SCAN_RADIUS_CHUNKS;
-        int maxChunkX = centerChunkX + PERIODIC_SCAN_RADIUS_CHUNKS;
-        int minChunkZ = centerChunkZ - PERIODIC_SCAN_RADIUS_CHUNKS;
-        int maxChunkZ = centerChunkZ + PERIODIC_SCAN_RADIUS_CHUNKS;
+        int validationRadiusChunks = 12;
+        int minChunkX = centerChunkX - validationRadiusChunks;
+        int maxChunkX = centerChunkX + validationRadiusChunks;
+        int minChunkZ = centerChunkZ - validationRadiusChunks;
+        int maxChunkZ = centerChunkZ + validationRadiusChunks;
 
         List<RadarSitesPayload.Entry> changes = new ArrayList<>();
         Set<BlockPos> checked = new HashSet<>();
@@ -212,19 +199,6 @@ public final class RadarTowerSync {
             }
 
             evaluateSite(level, pos, checked, changes);
-        }
-
-        for (int chunkX = minChunkX; chunkX <= maxChunkX; chunkX++) {
-            for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; chunkZ++) {
-                if (!level.hasChunk(chunkX, chunkZ)) {
-                    continue;
-                }
-
-                try {
-                    scanTowerCores(level, level.getChunk(chunkX, chunkZ), checked, changes);
-                } catch (RuntimeException ignored) {
-                }
-            }
         }
 
         broadcastChanges(level, changes);
@@ -526,7 +500,6 @@ public final class RadarTowerSync {
     private static void clearServerState() {
         radarSites.clear();
         pendingScans.clear();
-        ticks = 0L;
     }
 
     private record PendingScan(ServerLevel level, BlockPos origin, int radius, int delayTicks) {
