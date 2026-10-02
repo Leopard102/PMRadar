@@ -58,8 +58,8 @@ public final class StormOverlayData {
     // module only if the tower's structure data reports no radome shell below the core.
     private static final int RANGE_UPGRADE_FALLBACK_SEARCH_DEPTH_BLOCKS = 3;
     private static final int SITE_SCAN_INTERVAL_TICKS = 20;
-    // Keep the generated radar frame animation on the same cadence as PMWeather's radar block.
-    private static final int RADAR_FRAME_INTERVAL_TICKS = 10;
+    // Keep the generated radar frame animation in step with the per-tick client snapshot.
+    private static final int RADAR_FRAME_INTERVAL_TICKS = 1;
     private static final int LIGHTNING_MARKER_LIFETIME_TICKS = 20 * 30;
     private static final long LIGHTNING_MARKER_LIFETIME_MILLIS = LIGHTNING_MARKER_LIFETIME_TICKS * 50L;
     private static final double BASE_RADAR_RADIUS_BLOCKS = 2048.0D;

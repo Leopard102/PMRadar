@@ -331,6 +331,17 @@ public final class WorldMapRadarLegendOverlay {
             if (displayEnabled) {
                 drawDynamicRadar(guiGraphics, mapView, radarSites, drawRadarLocationMarkers);
             }
+            if (displayEnabled && radarLocationsVisible) {
+                guiGraphics.pose().pushPose();
+                try {
+                    guiGraphics.pose().last().pose().identity();
+                    guiGraphics.pose().translate(0.0F, 0.0F, 420.0F);
+                    drawLightningStrikes(guiGraphics, mapView, radarSites, StormOverlayData.lightningStrikeViews(mapView.dimension()));
+                    guiGraphics.flush();
+                } finally {
+                    guiGraphics.pose().popPose();
+                }
+            }
             guiGraphics.flush();
         } finally {
             guiGraphics.pose().popPose();
@@ -491,17 +502,6 @@ public final class WorldMapRadarLegendOverlay {
         ToolsButtonLayout tools = toolsButtonLayout(width, height);
         boolean dualModeActive = displayEnabled && StormOverlayData.isDualModeEnabled() && mapView != null;
 
-        if (mapView != null && radarLocationsVisible && !dualModeActive && displayEnabled) {
-            guiGraphics.pose().pushPose();
-            try {
-                guiGraphics.pose().last().pose().identity();
-                guiGraphics.pose().translate(0.0F, 0.0F, 420.0F);
-                drawLightningStrikes(guiGraphics, mapView, radarSites, StormOverlayData.lightningStrikeViews(mapView.dimension()));
-                guiGraphics.flush();
-            } finally {
-                guiGraphics.pose().popPose();
-            }
-        }
         if (dualModeActive) {
             if (!dualModeScreenTextureReady) {
                 guiGraphics.flush();

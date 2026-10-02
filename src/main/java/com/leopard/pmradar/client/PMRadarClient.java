@@ -14,8 +14,9 @@ import net.neoforged.neoforge.client.event.ScreenEvent;
 
 @EventBusSubscriber(modid = PMRadar.MODID, value = Dist.CLIENT)
 public final class PMRadarClient {
-    // PMWeather's RadarBlockEntity refreshes its client-side radar state every 10 ticks.
-    private static final long RADAR_UPDATE_INTERVAL_TICKS = 10L;
+    // Sample PMWeather's mutable storm state every client tick so the map keeps pace with
+    // the radar block's continuously rendered view.
+    private static final long RADAR_UPDATE_INTERVAL_TICKS = 1L;
 
     private static long ticks;
     private static boolean siteHintsSent;
