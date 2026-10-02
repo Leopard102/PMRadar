@@ -311,12 +311,6 @@ public abstract class XaeroWorldMapZoomMixin {
             );
         }
 
-        // Drawn here, right after Xaero finishes its own icons (and its own player-position arrow),
-        // so our persistent controls sit on top of the player arrow like before, while still
-        // landing before anything Xaero draws later in its render pass (e.g. its right-click menu).
-        WorldMapRadarLegendOverlay.drawPersistentControlsBeforeXaeroPopups(
-                (Screen) (Object) this, guiGraphics, this.pmradar$renderMouseX, this.pmradar$renderMouseY
-        );
         return result;
     }
 
@@ -337,10 +331,16 @@ public abstract class XaeroWorldMapZoomMixin {
                 WorldMapRadarLegendOverlay.captureDualModeSourceMap();
             }
             WorldMapRadarLegendOverlay.disableDualModeMainMapScissor();
+            WorldMapRadarLegendOverlay.drawPersistentControlsBeforeXaeroPopups(
+                    (Screen) (Object) this, guiGraphics, this.pmradar$renderMouseX, this.pmradar$renderMouseY
+            );
             return;
         }
 
         WorldMapRadarLegendOverlay.disableDualModeMainMapScissor();
+        WorldMapRadarLegendOverlay.drawPersistentControlsBeforeXaeroPopups(
+                (Screen) (Object) this, guiGraphics, this.pmradar$renderMouseX, this.pmradar$renderMouseY
+        );
     }
 
     @Redirect(
