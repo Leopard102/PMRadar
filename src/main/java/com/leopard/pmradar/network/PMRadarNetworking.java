@@ -1,10 +1,13 @@
 package com.leopard.pmradar.network;
 
 import com.leopard.pmradar.PMRadar;
+import com.leopard.pmradar.server.RadarTowerSync;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
+import net.neoforged.neoforge.network.handling.IPayloadContext;
+import net.minecraft.server.level.ServerPlayer;
 
 @EventBusSubscriber(modid = PMRadar.MODID)
 public final class PMRadarNetworking {
@@ -22,6 +25,11 @@ public final class PMRadarNetworking {
                 RadarDebrisPayload.TYPE,
                 RadarDebrisPayload.STREAM_CODEC,
                 (payload, context) -> handleClientbound(payload)
+        );
+        event.registrar("1").playToServer(
+                RadarSitesPayload.TYPE,
+                RadarSitesPayload.STREAM_CODEC,
+                PMRadarNetworking::handleServerbound
         );
     }
 
@@ -49,5 +57,13 @@ public final class PMRadarNetworking {
         } catch (ReflectiveOperationException exception) {
             PMRadar.LOGGER.warn("Failed to apply synced radar debris", exception);
         }
+    }
+
+    private static void handleServerbound(RadarSitesPayload payload, IPayloadContext context) {
+        if (!(context.player() instanceof ServerPlayer player)) {
+            return;
+        }
+
+        context.enqueueWork(() -> RadarTowerSync.acceptClientHints(player, payload));
     }
 }

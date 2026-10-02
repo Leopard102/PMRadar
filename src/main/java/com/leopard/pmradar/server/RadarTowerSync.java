@@ -27,6 +27,7 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -232,6 +233,13 @@ public final class RadarTowerSync {
     private static void scanLoadedChunk(ServerLevel level, LevelChunk chunk) {
         List<RadarSitesPayload.Entry> changes = new ArrayList<>();
         Set<BlockPos> checked = new HashSet<>();
+        int chunkX = chunk.getPos().x;
+        int chunkZ = chunk.getPos().z;
+        for (BlockPos pos : List.copyOf(sitesFor(level).keySet())) {
+            if (Math.floorDiv(pos.getX(), 16) == chunkX && Math.floorDiv(pos.getZ(), 16) == chunkZ) {
+                evaluateSite(level, pos, checked, changes);
+            }
+        }
         scanTowerCores(level, chunk, checked, changes);
         broadcastChanges(level, changes);
     }
@@ -323,6 +331,7 @@ public final class RadarTowerSync {
         }
 
         Map<BlockPos, RadarSitesPayload.Entry> sites = sitesFor(level);
+        RadarTowerSavedData savedData = RadarTowerSavedData.get(level);
         RadarTowerScanner.TowerState towerState = RadarTowerScanner.stateAt(level, immutable);
         if (towerState == RadarTowerScanner.TowerState.UNKNOWN) {
             return;
@@ -334,13 +343,22 @@ public final class RadarTowerSync {
                 sites.remove(immutable);
                 changes.add(RadarSitesPayload.Entry.removed(immutable));
             }
+            savedData.remove(immutable);
             return;
         }
 
+        RadarTowerSavedData.TowerRecord knownTower = savedData.get(immutable);
+        String stationCode = knownTower == null
+                ? generateStationCode(level, immutable, savedData)
+                : knownTower.stationCode();
+        boolean operational = towerState.operational();
+        boolean rangeUpgraded = RadarTowerScanner.hasRangeUpgrade(level, immutable);
+        savedData.put(immutable, new RadarTowerSavedData.TowerRecord(stationCode, operational, rangeUpgraded));
         RadarSitesPayload.Entry next = RadarSitesPayload.Entry.visible(
                 immutable,
-                towerState.operational(),
-                RadarTowerScanner.hasRangeUpgrade(level, immutable)
+                operational,
+                rangeUpgraded,
+                stationCode
         );
         if (!next.equals(previous)) {
             sites.put(immutable, next);
@@ -353,7 +371,19 @@ public final class RadarTowerSync {
     }
 
     private static Map<BlockPos, RadarSitesPayload.Entry> sitesFor(ServerLevel level) {
-        return radarSites.computeIfAbsent(level.dimension(), key -> new ConcurrentHashMap<>());
+        return radarSites.computeIfAbsent(level.dimension(), key -> {
+            Map<BlockPos, RadarSitesPayload.Entry> sites = new ConcurrentHashMap<>();
+            for (Map.Entry<BlockPos, RadarTowerSavedData.TowerRecord> entry : RadarTowerSavedData.get(level).towers().entrySet()) {
+                RadarTowerSavedData.TowerRecord tower = entry.getValue();
+                sites.put(entry.getKey(), RadarSitesPayload.Entry.visible(
+                        entry.getKey(),
+                        tower.operational(),
+                        tower.rangeUpgraded(),
+                        tower.stationCode()
+                ));
+            }
+            return sites;
+        });
     }
 
     private static void broadcastChanges(ServerLevel level, List<RadarSitesPayload.Entry> changes) {
@@ -363,20 +393,134 @@ public final class RadarTowerSync {
 
         PacketDistributor.sendToPlayersInDimension(
                 level,
-                new RadarSitesPayload(level.dimension().location(), List.copyOf(changes))
+                new RadarSitesPayload(level.dimension().location(), List.copyOf(changes), false)
         );
     }
 
     private static void sendKnownSites(ServerPlayer player) {
         List<RadarSitesPayload.Entry> entries = List.copyOf(sitesFor(player.serverLevel()).values());
-        if (entries.isEmpty()) {
+        PacketDistributor.sendToPlayer(
+                player,
+                new RadarSitesPayload(player.serverLevel().dimension().location(), entries, true)
+        );
+    }
+
+    public static void acceptClientHints(ServerPlayer player, RadarSitesPayload payload) {
+        if (payload == null || !player.serverLevel().dimension().location().equals(payload.dimension())) {
             return;
         }
 
-        PacketDistributor.sendToPlayer(
-                player,
-                new RadarSitesPayload(player.serverLevel().dimension().location(), entries)
-        );
+        ServerLevel level = player.serverLevel();
+        RadarTowerSavedData savedData = RadarTowerSavedData.get(level);
+        Map<BlockPos, RadarSitesPayload.Entry> sites = sitesFor(level);
+        List<RadarSitesPayload.Entry> changes = new ArrayList<>();
+        Set<String> usedCodes = new HashSet<>();
+        for (RadarTowerSavedData.TowerRecord tower : savedData.towers().values()) {
+            usedCodes.add(tower.stationCode());
+        }
+
+        int limit = Math.min(payload.entries().size(), 4096);
+        for (int index = 0; index < limit; index++) {
+            RadarSitesPayload.Entry hint = payload.entries().get(index);
+            if (hint == null || !hint.visible() || hint.pos() == null) {
+                continue;
+            }
+
+            BlockPos pos = hint.pos().immutable();
+            RadarTowerSavedData.TowerRecord existing = savedData.get(pos);
+            if (existing != null) {
+                continue;
+            }
+
+            String stationCode = normalizeStationCode(hint.stationCode());
+            if (stationCode == null || !usedCodes.add(stationCode)) {
+                stationCode = generateStationCode(level, pos, savedData);
+                usedCodes.add(stationCode);
+            }
+
+            RadarTowerSavedData.TowerRecord record = new RadarTowerSavedData.TowerRecord(
+                    stationCode,
+                    hint.operational(),
+                    hint.rangeUpgraded()
+            );
+            savedData.put(pos, record);
+            RadarSitesPayload.Entry next = RadarSitesPayload.Entry.visible(
+                    pos,
+                    record.operational(),
+                    record.rangeUpgraded(),
+                    record.stationCode()
+            );
+            RadarSitesPayload.Entry previous = sites.put(pos, next);
+            if (!next.equals(previous)) {
+                changes.add(next);
+            }
+        }
+
+        broadcastChanges(level, changes);
+    }
+
+    private static String generateStationCode(
+            ServerLevel level,
+            BlockPos pos,
+            RadarTowerSavedData savedData
+    ) {
+        Set<String> usedCodes = new HashSet<>();
+        for (RadarTowerSavedData.TowerRecord tower : savedData.towers().values()) {
+            usedCodes.add(tower.stationCode());
+        }
+
+        long value = level.getSeed();
+        value = value * 31L + pos.getX();
+        value = value * 31L + pos.getY();
+        value = value * 31L + pos.getZ();
+        value ^= level.dimension().location().hashCode();
+        for (int attempt = 0; attempt < 1024; attempt++) {
+            long candidate = mixStationCodeSeed(value + attempt * 0x9E3779B97F4A7C15L);
+            StringBuilder code = new StringBuilder("K");
+            for (int index = 0; index < 3; index++) {
+                code.append((char) ('A' + (int) (Long.remainderUnsigned(candidate, 26))));
+                candidate >>>= 8;
+            }
+
+            String stationCode = code.toString();
+            if (!usedCodes.contains(stationCode)) {
+                return stationCode;
+            }
+        }
+
+        long candidate = mixStationCodeSeed(value ^ 0xD1B54A32D192ED03L);
+        StringBuilder fallback = new StringBuilder("K");
+        for (int index = 0; index < 4; index++) {
+            fallback.append((char) ('A' + (int) (Long.remainderUnsigned(candidate, 26))));
+            candidate >>>= 8;
+        }
+        return fallback.toString();
+    }
+
+    private static long mixStationCodeSeed(long value) {
+        value = (value ^ (value >>> 30)) * 0xBF58476D1CE4E5B9L;
+        value = (value ^ (value >>> 27)) * 0x94D049BB133111EBL;
+        return value ^ (value >>> 31);
+    }
+
+    private static String normalizeStationCode(String stationCode) {
+        if (stationCode == null) {
+            return null;
+        }
+
+        String normalized = stationCode.trim().toUpperCase(Locale.ROOT);
+        if (normalized.length() < 4 || normalized.charAt(0) != 'K') {
+            return null;
+        }
+
+        for (int index = 1; index < normalized.length(); index++) {
+            char character = normalized.charAt(index);
+            if (character < 'A' || character > 'Z') {
+                return null;
+            }
+        }
+
+        return normalized;
     }
 
     private static void clearServerState() {

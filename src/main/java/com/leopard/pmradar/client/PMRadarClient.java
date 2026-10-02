@@ -1,7 +1,9 @@
 package com.leopard.pmradar.client;
 
 import com.leopard.pmradar.PMRadar;
+import com.leopard.pmradar.network.RadarSitesPayload;
 import net.minecraft.client.Minecraft;
+import net.neoforged.neoforge.network.PacketDistributor;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -15,6 +17,7 @@ public final class PMRadarClient {
     private static final long RADAR_UPDATE_INTERVAL_TICKS = 20L;
 
     private static long ticks;
+    private static boolean siteHintsSent;
 
     private PMRadarClient() {
     }
@@ -31,6 +34,13 @@ public final class PMRadarClient {
         long tick = ticks++;
         if (tick % RADAR_UPDATE_INTERVAL_TICKS == 0L) {
             StormOverlayData.update(minecraft);
+            if (!siteHintsSent && minecraft.player != null) {
+                RadarSitesPayload hints = StormOverlayData.rememberedRadarSiteHints();
+                if (hints != null) {
+                    PacketDistributor.sendToServer(hints);
+                    siteHintsSent = true;
+                }
+            }
         }
     }
 
@@ -66,6 +76,7 @@ public final class PMRadarClient {
     }
 
     private static void clearClientState() {
+        siteHintsSent = false;
         StormOverlayData.clear();
         WorldMapRadarLegendOverlay.reset();
     }

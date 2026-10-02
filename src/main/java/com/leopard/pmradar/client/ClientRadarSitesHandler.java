@@ -17,11 +17,12 @@ public final class ClientRadarSitesHandler {
                     entry.pos(),
                     entry.visible(),
                     entry.operational(),
-                    entry.rangeUpgraded()
+                    entry.rangeUpgraded(),
+                    entry.stationCode()
             ));
         }
 
-        if (StormOverlayData.applySyncedRadarSites(payload.dimension(), sites)) {
+        if (StormOverlayData.applySyncedRadarSites(payload.dimension(), sites, payload.fullSync())) {
             WorldMapRadarLegendOverlay.clearRadarTextures();
         }
     }

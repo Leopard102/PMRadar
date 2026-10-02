@@ -2,6 +2,7 @@ package com.leopard.pmradar.client;
 
 import com.leopard.pmradar.RadarTowerScanner;
 import com.leopard.pmradar.RadarDebrisFilter;
+import com.leopard.pmradar.network.RadarSitesPayload;
 import dev.protomanly.pmweather.block.ModBlocks;
 import dev.protomanly.pmweather.block.entity.RadarBlockEntity;
 import dev.protomanly.pmweather.config.ServerConfig;
@@ -799,8 +800,12 @@ public final class StormOverlayData {
         return true;
     }
 
-    public static boolean applySyncedRadarSites(ResourceLocation dimensionLocation, List<SyncedRadarSite> syncedSites) {
-        if (dimensionLocation == null || syncedSites == null || syncedSites.isEmpty()) {
+    public static boolean applySyncedRadarSites(
+            ResourceLocation dimensionLocation,
+            List<SyncedRadarSite> syncedSites,
+            boolean fullSync
+    ) {
+        if (dimensionLocation == null || syncedSites == null) {
             return false;
         }
 
@@ -820,6 +825,24 @@ public final class StormOverlayData {
         }
 
         boolean changed = false;
+        if (fullSync) {
+            Set<BlockPos> syncedPositions = new HashSet<>();
+            for (SyncedRadarSite syncedSite : syncedSites) {
+                if (syncedSite != null && syncedSite.pos() != null && syncedSite.visible()) {
+                    syncedPositions.add(syncedSite.pos().immutable());
+                }
+            }
+
+            for (BlockPos rememberedPos : List.copyOf(rememberedRadarSites.keySet())) {
+                if (!syncedPositions.contains(rememberedPos)) {
+                    changed |= rememberedRadarSites.remove(rememberedPos) != null;
+                    if (rememberedPos.equals(selectedRadarSitePos)) {
+                        selectedRadarSitePos = null;
+                    }
+                }
+            }
+        }
+
         for (SyncedRadarSite syncedSite : syncedSites) {
             if (syncedSite == null || syncedSite.pos() == null) {
                 continue;
@@ -838,7 +861,7 @@ public final class StormOverlayData {
                     level,
                     pos,
                     syncedSite.operational(),
-                    null,
+                    syncedSite.stationCode(),
                     null,
                     syncedSite.rangeUpgraded()
             );
@@ -861,6 +884,26 @@ public final class StormOverlayData {
         regionCache.clear();
         saveRememberedRadarSites();
         return true;
+    }
+
+    public static RadarSitesPayload rememberedRadarSiteHints() {
+        Minecraft minecraft = Minecraft.getInstance();
+        Level level = minecraft.level;
+        if (level == null) {
+            return null;
+        }
+
+        List<RadarSitesPayload.Entry> entries = new ArrayList<>(rememberedRadarSites.size());
+        for (RadarSite site : rememberedRadarSites.values()) {
+            entries.add(RadarSitesPayload.Entry.visible(
+                    site.pos(),
+                    site.operational(),
+                    site.radiusBlocks() > BASE_RADAR_RADIUS_BLOCKS,
+                    site.stationCode()
+            ));
+        }
+
+        return new RadarSitesPayload(level.dimension().location(), List.copyOf(entries), false);
     }
 
     public static boolean applySyncedDebrisClusters(ResourceLocation dimensionLocation, List<SyncedDebrisCluster> syncedClusters) {
@@ -1135,14 +1178,18 @@ public final class StormOverlayData {
     ) {
         BlockPos immutable = pos.immutable();
         RadarSite existing = rememberedRadarSites.get(immutable);
-        String stationCode = existing == null ? preferredStationCode : existing.stationCode();
+        String normalizedPreferredStationCode = normalizeStationCode(preferredStationCode);
+        boolean authoritativeStationCode = normalizedPreferredStationCode != null;
+        String stationCode = authoritativeStationCode
+                ? normalizedPreferredStationCode
+                : existing == null ? null : existing.stationCode();
         Set<String> usedCodes = usedStationCodes(immutable);
         if (reservedStationCodes != null) {
             usedCodes.addAll(reservedStationCodes);
         }
 
         stationCode = normalizeStationCode(stationCode);
-        if (stationCode == null || usedCodes.contains(stationCode)) {
+        if (stationCode == null || (!authoritativeStationCode && usedCodes.contains(stationCode))) {
             stationCode = generateStationCode(usedCodes);
         }
 
@@ -2551,7 +2598,13 @@ public final class StormOverlayData {
     public record LightningStrikeView(double x, double z, float strength, float alpha) {
     }
 
-    public record SyncedRadarSite(BlockPos pos, boolean visible, boolean operational, boolean rangeUpgraded) {
+    public record SyncedRadarSite(
+            BlockPos pos,
+            boolean visible,
+            boolean operational,
+            boolean rangeUpgraded,
+            String stationCode
+    ) {
     }
 
     public record SyncedDebrisCluster(long stormId, double x, double z, double radius, float strength, int count) {

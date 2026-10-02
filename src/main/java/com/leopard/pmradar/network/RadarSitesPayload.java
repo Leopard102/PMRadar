@@ -10,7 +10,7 @@ import net.minecraft.resources.ResourceLocation;
 import java.util.ArrayList;
 import java.util.List;
 
-public record RadarSitesPayload(ResourceLocation dimension, List<Entry> entries) implements CustomPacketPayload {
+public record RadarSitesPayload(ResourceLocation dimension, List<Entry> entries, boolean fullSync) implements CustomPacketPayload {
     public static final Type<RadarSitesPayload> TYPE = new Type<>(
             ResourceLocation.fromNamespaceAndPath(PMRadar.MODID, "radar_sites")
     );
@@ -18,23 +18,26 @@ public record RadarSitesPayload(ResourceLocation dimension, List<Entry> entries)
         @Override
         public RadarSitesPayload decode(RegistryFriendlyByteBuf buffer) {
             ResourceLocation dimension = buffer.readResourceLocation();
+            boolean fullSync = buffer.readBoolean();
             int count = buffer.readVarInt();
             List<Entry> entries = new ArrayList<>(Math.min(count, 256));
             for (int i = 0; i < count; i++) {
-                entries.add(new Entry(buffer.readBlockPos(), buffer.readByte(), buffer.readBoolean()));
+                entries.add(new Entry(buffer.readBlockPos(), buffer.readByte(), buffer.readBoolean(), buffer.readUtf(32)));
             }
 
-            return new RadarSitesPayload(dimension, List.copyOf(entries));
+            return new RadarSitesPayload(dimension, List.copyOf(entries), fullSync);
         }
 
         @Override
         public void encode(RegistryFriendlyByteBuf buffer, RadarSitesPayload payload) {
             buffer.writeResourceLocation(payload.dimension());
+            buffer.writeBoolean(payload.fullSync());
             buffer.writeVarInt(payload.entries().size());
             for (Entry entry : payload.entries()) {
                 buffer.writeBlockPos(entry.pos());
                 buffer.writeByte(entry.state());
                 buffer.writeBoolean(entry.rangeUpgraded());
+                buffer.writeUtf(entry.stationCode(), 32);
             }
         }
     };
@@ -44,17 +47,17 @@ public record RadarSitesPayload(ResourceLocation dimension, List<Entry> entries)
         return TYPE;
     }
 
-    public record Entry(BlockPos pos, byte state, boolean rangeUpgraded) {
+    public record Entry(BlockPos pos, byte state, boolean rangeUpgraded, String stationCode) {
         public static final byte REMOVED = 0;
         public static final byte WORKING = 1;
         public static final byte BROKEN = 2;
 
         public static Entry removed(BlockPos pos) {
-            return new Entry(pos.immutable(), REMOVED, false);
+            return new Entry(pos.immutable(), REMOVED, false, "");
         }
 
-        public static Entry visible(BlockPos pos, boolean operational, boolean rangeUpgraded) {
-            return new Entry(pos.immutable(), operational ? WORKING : BROKEN, rangeUpgraded);
+        public static Entry visible(BlockPos pos, boolean operational, boolean rangeUpgraded, String stationCode) {
+            return new Entry(pos.immutable(), operational ? WORKING : BROKEN, rangeUpgraded, stationCode);
         }
 
         public boolean visible() {
