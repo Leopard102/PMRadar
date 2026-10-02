@@ -61,7 +61,6 @@ public final class WorldMapRadarLegendOverlay {
     private static final int RADAR_TOOLS_BOTTOM_MARGIN = 4;
     private static final int BOTTOM_CONTROLS_PADDING = 6;
     private static final int BOTTOM_CONTROLS_STORM_BAR_HEIGHT = 15;
-    private static final int XAERO_PLAYER_MARKER_CLEARANCE = 30;
     private static final String DISPLAY_BUTTON_TEXT = "RADAR";
     private static final int DISPLAY_BUTTON_TEXT_Y_OFFSET = 0;
     private static final int DISPLAY_BUTTON_WIDTH_TRIM = 0;
@@ -547,7 +546,7 @@ public final class WorldMapRadarLegendOverlay {
 
     private static BottomControlsLayout bottomControlsLayout(Font font, int width, int height) {
         int controlHeight = bottomControlsStormBarHeight() + 2;
-        int buttonY = Math.max(0, height - DUAL_MAP_CONTROL_BOTTOM_PADDING - XAERO_PLAYER_MARKER_CLEARANCE - controlHeight);
+        int buttonY = Math.max(0, height - DUAL_MAP_CONTROL_BOTTOM_PADDING - controlHeight);
         return bottomControlsLayout(font, width, height, StormOverlayData.getRadarMode(), buttonY);
     }
 
@@ -1897,10 +1896,7 @@ public final class WorldMapRadarLegendOverlay {
 
     private static BottomControlsLayout dualModeControls(Font font, DualMapPanel panel, StormOverlayData.RadarMode mode) {
         int controlHeight = bottomControlsStormBarHeight() + 2;
-        int controlY = Math.max(
-                panel.top() + 16,
-                panel.bottom() - DUAL_MAP_CONTROL_BOTTOM_PADDING - XAERO_PLAYER_MARKER_CLEARANCE - controlHeight
-        );
+        int controlY = Math.max(panel.top() + 16, panel.bottom() - DUAL_MAP_CONTROL_BOTTOM_PADDING - controlHeight);
         return bottomControlsLayoutWithin(font, panel.left(), panel.right(), mode, controlY);
     }
 
