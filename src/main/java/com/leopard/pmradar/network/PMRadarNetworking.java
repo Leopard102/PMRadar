@@ -2,6 +2,7 @@ package com.leopard.pmradar.network;
 
 import com.leopard.pmradar.PMRadar;
 import com.leopard.pmradar.server.RadarTowerSync;
+import net.minecraft.network.protocol.PacketFlow;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.loading.FMLEnvironment;
@@ -16,20 +17,21 @@ public final class PMRadarNetworking {
 
     @SubscribeEvent
     public static void register(RegisterPayloadHandlersEvent event) {
-        event.registrar("1").playToClient(
+        event.registrar("1").playBidirectional(
                 RadarSitesPayload.TYPE,
                 RadarSitesPayload.STREAM_CODEC,
-                (payload, context) -> handleClientbound(payload)
+                (payload, context) -> {
+                    if (context.flow() == PacketFlow.SERVERBOUND) {
+                        handleServerbound(payload, context);
+                    } else {
+                        handleClientbound(payload);
+                    }
+                }
         );
         event.registrar("1").playToClient(
                 RadarDebrisPayload.TYPE,
                 RadarDebrisPayload.STREAM_CODEC,
                 (payload, context) -> handleClientbound(payload)
-        );
-        event.registrar("1").playToServer(
-                RadarSitesPayload.TYPE,
-                RadarSitesPayload.STREAM_CODEC,
-                PMRadarNetworking::handleServerbound
         );
     }
 
