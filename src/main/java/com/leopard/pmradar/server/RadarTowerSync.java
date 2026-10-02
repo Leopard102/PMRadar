@@ -17,6 +17,7 @@ import net.minecraft.world.level.chunk.LevelChunkSection;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.level.ChunkEvent;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.event.server.ServerStartingEvent;
 import net.neoforged.neoforge.event.server.ServerStoppingEvent;
@@ -82,6 +83,13 @@ public final class RadarTowerSync {
     public static void onNeighborNotify(BlockEvent.NeighborNotifyEvent event) {
         if (isRadarStructureBlock(event.getState())) {
             queueScan(event.getLevel(), event.getPos(), TOWER_SEARCH_RADIUS_BLOCKS);
+        }
+    }
+
+    @SubscribeEvent
+    public static void onChunkLoaded(ChunkEvent.Load event) {
+        if (event.getLevel() instanceof ServerLevel level && event.getChunk() instanceof LevelChunk chunk) {
+            scanLoadedChunk(level, chunk);
         }
     }
 
@@ -218,6 +226,13 @@ public final class RadarTowerSync {
             }
         }
 
+        broadcastChanges(level, changes);
+    }
+
+    private static void scanLoadedChunk(ServerLevel level, LevelChunk chunk) {
+        List<RadarSitesPayload.Entry> changes = new ArrayList<>();
+        Set<BlockPos> checked = new HashSet<>();
+        scanTowerCores(level, chunk, checked, changes);
         broadcastChanges(level, changes);
     }
 
