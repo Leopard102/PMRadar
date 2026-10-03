@@ -5,6 +5,7 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.BufferUploader;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
+import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.Tesselator;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import dev.protomanly.pmweather.config.ClientConfig;
@@ -213,6 +214,10 @@ public final class WorldMapRadarLegendOverlay {
     private static int modeTop;
     private static int modeRight;
     private static int modeBottom;
+    private static int radarBarLeft;
+    private static int radarBarTop;
+    private static int radarBarRight;
+    private static int radarBarBottom;
     private static int modeMenuLeft;
     private static int modeMenuTop;
     private static int modeMenuRight;
@@ -470,11 +475,72 @@ public final class WorldMapRadarLegendOverlay {
             buttonRight = activeControls.buttonX() + activeControls.buttonWidth();
             buttonBottom = activeControls.buttonY() + activeControls.buttonHeight();
 
+            radarBarLeft = activeControls.barX();
+            radarBarTop = activeControls.barY();
+            radarBarRight = activeControls.barX() + activeControls.barWidth();
+            radarBarBottom = (int) Math.ceil(activeControls.barY() + activeControls.barHeight());
+
             modeLeft = activeControls.modeLeft();
             modeTop = activeControls.modeTop();
             modeRight = activeControls.modeRight();
             modeBottom = activeControls.modeBottom();
+        } else {
+            radarBarLeft = 0;
+            radarBarTop = 0;
+            radarBarRight = 0;
+            radarBarBottom = 0;
         }
+    }
+
+    /**
+     * PMRadar controls are screen-space UI. Xaero's player arrow is a map element and can be
+     * submitted after the control buffer, so do not draw that one map element while it overlaps
+     * one of our controls. The arrow remains visible everywhere else on the world map.
+     */
+    public static boolean shouldSuppressXaeroPlayerArrow(PoseStack matrixStack, double x, double z) {
+        if (matrixStack == null || (!StormOverlayData.isDisplayEnabled() && toolsButtonRight <= toolsButtonLeft)) {
+            return false;
+        }
+
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || minecraft.getWindow() == null) {
+            return false;
+        }
+
+        int framebufferWidth = minecraft.getWindow().getWidth();
+        int framebufferHeight = minecraft.getWindow().getHeight();
+        double guiScale = currentGuiScale();
+        if (framebufferWidth <= 0 || framebufferHeight <= 0 || guiScale <= 0.0D) {
+            return false;
+        }
+
+        Matrix4f pose = matrixStack.last().pose();
+        Matrix4f projection = RenderSystem.getProjectionMatrix();
+        double transformedX = pose.m00() * x + pose.m10() * z + pose.m30();
+        double transformedY = pose.m01() * x + pose.m11() * z + pose.m31();
+        double projectedX = projection.m00() * transformedX + projection.m30();
+        double projectedY = projection.m11() * transformedY + projection.m31();
+        double screenX = (projectedX + 1.0D) * framebufferWidth * 0.5D / guiScale;
+        double screenY = (1.0D - projectedY) * framebufferHeight * 0.5D / guiScale;
+
+        // Include the marker's footprint so its transparent/opaque sprite cannot touch the UI
+        // edges. These are GUI pixels, matching the bounds used by the control hit testing.
+        double padding = 18.0D;
+        return overlapsControl(screenX, screenY, padding, radarBarLeft, radarBarTop, radarBarRight, radarBarBottom)
+                || overlapsControl(screenX, screenY, padding, buttonLeft, buttonTop, buttonRight, buttonBottom)
+                || overlapsControl(screenX, screenY, padding, modeLeft, modeTop, modeRight, modeBottom)
+                || overlapsControl(screenX, screenY, padding, modeMenuLeft, modeMenuTop, modeMenuRight, modeMenuBottom)
+                || overlapsControl(screenX, screenY, padding, toolsButtonLeft, toolsButtonTop, toolsButtonRight, toolsButtonBottom)
+                || overlapsControl(screenX, screenY, padding, settingsModalLeft, settingsModalTop, settingsModalRight, settingsModalBottom);
+    }
+
+    private static boolean overlapsControl(double screenX, double screenY, double padding, int left, int top, int right, int bottom) {
+        return right > left
+                && bottom > top
+                && screenX >= left - padding
+                && screenX <= right + padding
+                && screenY >= top - padding
+                && screenY <= bottom + padding;
     }
 
     public static void render(ScreenEvent.Render.Post event) {
@@ -5249,6 +5315,10 @@ public final class WorldMapRadarLegendOverlay {
         modeTop = 0;
         modeRight = 0;
         modeBottom = 0;
+        radarBarLeft = 0;
+        radarBarTop = 0;
+        radarBarRight = 0;
+        radarBarBottom = 0;
         settingsOpen = false;
         radarToolsOpenAnimationActive = false;
         radarToolsOpenAnimationStartNanos = 0L;
