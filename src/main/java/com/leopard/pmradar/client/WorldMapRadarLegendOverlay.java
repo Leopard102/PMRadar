@@ -1631,9 +1631,10 @@ public final class WorldMapRadarLegendOverlay {
         enableDualModeRadarRawClip(panel, panel.top());
         try {
             double lowerRadarTopShift = dualModeLowerRadarTopShift(panel, lowerPanel);
+            double lowerPanelSeamOffset = lowerPanel ? dualModeLowerSeamOffset() : 0.0D;
             guiGraphics.pose().pushPose();
             try {
-                guiGraphics.pose().translate(panel.left(), (float) (panel.top() - lowerRadarTopShift), 0.0F);
+                guiGraphics.pose().translate(panel.left(), (float) (panel.top() - lowerRadarTopShift + lowerPanelSeamOffset), 0.0F);
                 drawDynamicRadar(guiGraphics, panelView, radarSites, false, mode, false, DUAL_MAP_RADAR_ALPHA);
             } finally {
                 guiGraphics.pose().popPose();
@@ -1641,7 +1642,7 @@ public final class WorldMapRadarLegendOverlay {
 
             guiGraphics.pose().pushPose();
             try {
-                guiGraphics.pose().translate(panel.left(), panel.top(), 0.0F);
+                guiGraphics.pose().translate(panel.left(), (float) (panel.top() + lowerPanelSeamOffset), 0.0F);
                 if (StormOverlayData.isLightningEnabled()) {
                     drawLightningStrikes(guiGraphics, panelView, radarSites, StormOverlayData.lightningStrikeViews(panelView.dimension()));
                 }
@@ -1673,7 +1674,8 @@ public final class WorldMapRadarLegendOverlay {
             try {
                 guiGraphics.pose().translate(
                         panel.left(),
-                        (float) (panel.top() - dualModeLowerRadarTopShift(panel, lowerPanel)),
+                        (float) (panel.top() - dualModeLowerRadarTopShift(panel, lowerPanel)
+                                + (lowerPanel ? dualModeLowerSeamOffset() : 0.0D)),
                         0.0F
                 );
                 drawRadarRangeCircles(guiGraphics, panelView, radarSites);
@@ -1742,7 +1744,9 @@ public final class WorldMapRadarLegendOverlay {
             double mouseX,
             double mouseY
     ) {
-        double offset = target == ModeControlTarget.DUAL_LOWER ? dualModeLowerUiOffset() : 0.0D;
+        double offset = target == ModeControlTarget.DUAL_LOWER
+                ? dualModeLowerUiOffset() + dualModeLowerSeamOffset()
+                : 0.0D;
         guiGraphics.pose().pushPose();
         try {
             guiGraphics.pose().translate(0.0D, offset, 0.0D);
@@ -1764,13 +1768,37 @@ public final class WorldMapRadarLegendOverlay {
             return 0.0D;
         }
         // Use the active projection, not ceil-rounded GUI dimensions, to preserve glyph rasterization.
-        double pixelsPerGuiY = Math.abs(RenderSystem.getProjectionMatrix().m11()) * rawHeight * 0.5D;
+        double pixelsPerGuiY = dualModePixelsPerGuiY(rawHeight);
         if (!Double.isFinite(pixelsPerGuiY) || pixelsPerGuiY <= 0.0D) {
             return 0.0D;
         }
         int panelOffset = dualMapPanels(1, guiHeight).lower().top();
         int pixelOffset = rawHeight - dualModeRawPanelHeight();
         return pixelOffset / pixelsPerGuiY - panelOffset;
+    }
+
+    private static double dualModeLowerSeamOffset() {
+        double guiScale = currentGuiScale();
+        if (guiScale <= 1.0D) {
+            return 0.0D;
+        }
+
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || minecraft.getWindow() == null) {
+            return 1.0D / guiScale;
+        }
+
+        int rawHeight = minecraft.getWindow().getHeight();
+        double pixelsPerGuiY = dualModePixelsPerGuiY(rawHeight);
+        return pixelsPerGuiY > 0.0D ? 1.0D / pixelsPerGuiY : 1.0D / guiScale;
+    }
+
+    private static double dualModePixelsPerGuiY(int rawHeight) {
+        if (rawHeight <= 0) {
+            return 0.0D;
+        }
+
+        return Math.abs(RenderSystem.getProjectionMatrix().m11()) * rawHeight * 0.5D;
     }
 
     private static DualMapPanels dualMapPanels(int width, int height) {

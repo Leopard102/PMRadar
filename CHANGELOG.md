@@ -25,6 +25,7 @@ All notable changes to PMRadar are documented here.
 - Smoothed menu scrolling and mode-list animation by retaining fractional positions, removing label pixel snapping, and using linear filtering for the closing-menu texture.
 - Made the Radar Tools window follow fractional positions while dragging so it no longer snaps to whole pixels or jumps when picked up.
 - Removed the scale-dependent blank seam at the top of the lower Dual Mode radar panel.
+- Preserved a single physical-pixel center seam so lower-panel radar controls and textures no longer cover the split line at GUI scales above 1.
 - Restored the radar and lightning layers below Xaero's player arrow while keeping the storm bar, buttons, and PMRadar menus above Xaero's final map overlays.
 - Matched PMRadar's live radar timing to PMWeather: client snapshots every tick, with heavy radar/chunk calculations refreshed every 5 ticks and the cached texture uploaded every render frame.
 - Matched PMWeather's fixed radar-block texture resolution for upgraded towers so larger coverage does not multiply rebuild work and delay visible updates.
