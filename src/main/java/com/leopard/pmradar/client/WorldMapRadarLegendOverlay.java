@@ -54,9 +54,6 @@ public final class WorldMapRadarLegendOverlay {
     private static final float CORRELATION_MIN = StormOverlayData.CORRELATION_MIN;
     private static final float CORRELATION_MAX = StormOverlayData.CORRELATION_MAX;
     private static final double RADAR_BLIND_SPOT_RADIUS_BLOCKS = 48.0D;
-    // Must match StormOverlayData.BASE_RADAR_RADIUS_BLOCKS - the "normal" (non-upgraded) radius,
-    // used as the reference point for scaling texture resolution with a site's actual radius.
-    private static final double BASE_RADAR_RADIUS_BLOCKS = 2048.0D;
     private static final int RADAR_TOOLS_BUTTON_SIZE = 24;
     private static final int RADAR_TOOLS_BOTTOM_MARGIN = 4;
     private static final int BOTTOM_CONTROLS_PADDING = 6;
@@ -3137,13 +3134,10 @@ public final class WorldMapRadarLegendOverlay {
 
     private static int radarTextureSize(StormOverlayData.RadarSiteView site) {
         int baseSize = ClientConfig.radarResolution > 0 ? ClientConfig.radarResolution : DEFAULT_RADAR_TEXTURE_SIZE;
-        // A range-upgraded tower covers a larger radius (currently up to 4x). Scale the
-        // texture's pixel dimensions by the same factor so blocks-per-pixel - and therefore
-        // how detailed the storms look - stays consistent whether or not a tower is upgraded.
-        // MIN/MAX_RADAR_TEXTURE_SIZE below still cap the cost of very large textures.
-        double scale = site.radiusBlocks() / BASE_RADAR_RADIUS_BLOCKS;
-        int textureSize = (int) Math.round(baseSize * scale);
-        return clampInt(textureSize, MIN_RADAR_TEXTURE_SIZE, MAX_RADAR_TEXTURE_SIZE);
+        // PMWeather keeps the radar block texture at its configured resolution even when a
+        // range upgrade expands the simulated coverage. Match that fixed resolution here so
+        // upgraded towers do not multiply the per-frame rebuild cost.
+        return clampInt(baseSize, MIN_RADAR_TEXTURE_SIZE, MAX_RADAR_TEXTURE_SIZE);
     }
 
     private static ResourceLocation textureLocation(BlockPos pos, StormOverlayData.RadarMode mode) {
