@@ -11,7 +11,7 @@ PMRadar adds:
 - **Broken radome handling:** If the radar shell is damaged but the core is still there, the station can still be found, but it stops producing radar returns until repaired.
 - **Radar extension module:** Each radar site covers **2,048 blocks** by default. A range upgrade module placed directly beneath the WSR-88D core expands coverage to **8,192 blocks**.
 - **Lightning markers:** Shows recent lightning strikes on the map and fades them out over time.
-- **Radar Tools menu:** Toggle the radar layer, Dual Mode, radar locations, lightning markers, and animation options.
+- **Radar Tools menu:** Toggle the radar layer, Dual Mode, lightning markers, and animation options.
 
 ## Required mods
 

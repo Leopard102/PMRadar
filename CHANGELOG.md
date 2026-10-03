@@ -21,6 +21,8 @@ All notable changes to PMRadar are documented here.
 - Moved the persistent PMRadar controls into `ScreenEvent.Render.Post`, removing the earlier Xaero-method hook that could still run before the player's final map composition.
 - Repainted the PMRadar controls after clearing Xaero's depth buffer so the player arrow remains visible while the opaque PMRadar bar, buttons, and menus cover it when they overlap.
 - Raised the Radar Tools menu above the final PMRadar control layer in Dual Mode so the menu panel cannot sit behind the radar bar or mode buttons.
+- Removed the **Always Show Radar Locations** row from the Radar Tools menu while preserving existing saved radar-location behavior.
+- Smoothed menu scrolling and mode-list animation by retaining fractional positions, removing label pixel snapping, and using linear filtering for the closing-menu texture.
 - Restored the radar and lightning layers below Xaero's player arrow while keeping the storm bar, buttons, and PMRadar menus above Xaero's final map overlays.
 - Matched PMRadar's live radar timing to PMWeather: client snapshots every tick, with heavy radar/chunk calculations refreshed every 5 ticks and the cached texture uploaded every render frame.
 - Matched PMWeather's fixed radar-block texture resolution for upgraded towers so larger coverage does not multiply rebuild work and delay visible updates.

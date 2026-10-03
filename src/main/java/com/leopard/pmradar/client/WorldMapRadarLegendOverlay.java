@@ -89,7 +89,7 @@ public final class WorldMapRadarLegendOverlay {
     private static final int SETTINGS_TOGGLE_BOX_SIZE = 11;
     private static final int SETTINGS_TOGGLE_BOX_RIGHT_INSET = 18;
     private static final int SETTINGS_TOGGLE_BOX_TOP_OFFSET = 6;
-    private static final int SETTINGS_MAIN_ROW_COUNT = 5;
+    private static final int SETTINGS_MAIN_ROW_COUNT = 4;
     private static final int SETTINGS_ANIMATIONS_ROW_COUNT = 2;
     private static final int DUAL_MAP_SIDE_MARGIN = 0;
     private static final int DUAL_MAP_VERTICAL_MARGIN = 0;
@@ -751,13 +751,6 @@ public final class WorldMapRadarLegendOverlay {
 
             if (settingsMenuPage == SettingsMenuPage.MAIN && isInsideMenuBounds(mouseX, mouseY, dualModeLeft, dualModeTop, dualModeRight, dualModeBottom)) {
                 StormOverlayData.toggleDualModeEnabled();
-                event.setCanceled(true);
-                return;
-            }
-
-            if (settingsMenuPage == SettingsMenuPage.MAIN && isInsideMenuBounds(mouseX, mouseY, radarLocationsLeft, radarLocationsTop, radarLocationsRight, radarLocationsBottom)) {
-                StormOverlayData.toggleRadarLocationsAlwaysVisible();
-                clearRadarTextures();
                 event.setCanceled(true);
                 return;
             }
@@ -2548,7 +2541,7 @@ public final class WorldMapRadarLegendOverlay {
 
         int rowLeft = left + SETTINGS_MODAL_ROW_HORIZONTAL_INSET;
         int rowRight = right - SETTINGS_MODAL_ROW_HORIZONTAL_INSET;
-        int rowTop = scrolledSettingsRowTop(top, 0);
+        double rowTop = scrolledSettingsRowTop(top, 0);
         if (interactive) {
             SettingRowBounds bounds = clippedSettingsToggleBounds(rowRight, rowTop, clipTop, clipBottom);
             displayEnabledLeft = bounds.left();
@@ -2575,18 +2568,6 @@ public final class WorldMapRadarLegendOverlay {
         rowTop = scrolledSettingsRowTop(top, 2);
         if (interactive) {
             SettingRowBounds bounds = clippedSettingsToggleBounds(rowRight, rowTop, clipTop, clipBottom);
-            radarLocationsLeft = bounds.left();
-            radarLocationsTop = bounds.top();
-            radarLocationsRight = bounds.right();
-            radarLocationsBottom = bounds.bottom();
-        }
-        if (shouldDrawSettingsRow(rowTop, clipTop, clipBottom, interactive)) {
-            drawSettingsToggleRow(guiGraphics, font, "Always Show Radar Locations", rowLeft, rowTop, rowRight, StormOverlayData.isRadarLocationsAlwaysVisible(), alpha);
-        }
-
-        rowTop = scrolledSettingsRowTop(top, 3);
-        if (interactive) {
-            SettingRowBounds bounds = clippedSettingsToggleBounds(rowRight, rowTop, clipTop, clipBottom);
             lightningLeft = bounds.left();
             lightningTop = bounds.top();
             lightningRight = bounds.right();
@@ -2596,7 +2577,7 @@ public final class WorldMapRadarLegendOverlay {
             drawSettingsToggleRow(guiGraphics, font, "Lightning", rowLeft, rowTop, rowRight, StormOverlayData.isLightningEnabled(), alpha);
         }
 
-        rowTop = scrolledSettingsRowTop(top, 4);
+        rowTop = scrolledSettingsRowTop(top, 3);
         if (interactive) {
             SettingRowBounds bounds = clippedSettingsRowBounds(rowLeft, rowTop, rowRight, clipTop, clipBottom);
             animationsLeft = bounds.left();
@@ -2616,7 +2597,7 @@ public final class WorldMapRadarLegendOverlay {
 
         int rowLeft = left + SETTINGS_MODAL_ROW_HORIZONTAL_INSET;
         int rowRight = right - SETTINGS_MODAL_ROW_HORIZONTAL_INSET;
-        int rowTop = scrolledSettingsRowTop(top, 0);
+        double rowTop = scrolledSettingsRowTop(top, 0);
         if (interactive) {
             SettingRowBounds bounds = clippedSettingsToggleBounds(rowRight, rowTop, clipTop, clipBottom);
             menuAnimationsLeft = bounds.left();
@@ -2641,17 +2622,19 @@ public final class WorldMapRadarLegendOverlay {
         }
     }
 
-    private static int scrolledSettingsRowTop(int modalTop, int rowIndex) {
-        return modalTop + SETTINGS_MODAL_ROW_TOP_OFFSET + rowIndex * SETTINGS_MODAL_ROW_STEP - (int) Math.round(settingsMenuScrollOffset);
+    private static double scrolledSettingsRowTop(int modalTop, int rowIndex) {
+        return modalTop + SETTINGS_MODAL_ROW_TOP_OFFSET + rowIndex * SETTINGS_MODAL_ROW_STEP - settingsMenuScrollOffset;
     }
 
-    private static boolean shouldDrawSettingsRow(int rowTop, int clipTop, int clipBottom, boolean interactive) {
+    private static boolean shouldDrawSettingsRow(double rowTop, int clipTop, int clipBottom, boolean interactive) {
         return interactive || (rowTop >= clipTop && rowTop + SETTINGS_MODAL_ROW_HEIGHT <= clipBottom);
     }
 
-    private static SettingRowBounds clippedSettingsRowBounds(int left, int top, int right, int clipTop, int clipBottom) {
-        int clippedTop = Math.max(top, clipTop);
-        int clippedBottom = Math.min(top + SETTINGS_MODAL_ROW_HEIGHT, clipBottom);
+    private static SettingRowBounds clippedSettingsRowBounds(int left, double top, int right, int clipTop, int clipBottom) {
+        int rowTop = (int) Math.floor(top);
+        int rowBottom = (int) Math.ceil(top + SETTINGS_MODAL_ROW_HEIGHT);
+        int clippedTop = Math.max(rowTop, clipTop);
+        int clippedBottom = Math.min(rowBottom, clipBottom);
         if (clippedBottom <= clippedTop) {
             return new SettingRowBounds(0, 0, 0, 0);
         }
@@ -2659,9 +2642,9 @@ public final class WorldMapRadarLegendOverlay {
         return new SettingRowBounds(left, clippedTop, right, clippedBottom);
     }
 
-    private static SettingRowBounds clippedSettingsToggleBounds(int rowRight, int rowTop, int clipTop, int clipBottom) {
+    private static SettingRowBounds clippedSettingsToggleBounds(int rowRight, double rowTop, int clipTop, int clipBottom) {
         int boxLeft = rowRight - SETTINGS_TOGGLE_BOX_RIGHT_INSET;
-        int boxTop = rowTop + SETTINGS_TOGGLE_BOX_TOP_OFFSET;
+        int boxTop = (int) Math.floor(rowTop + SETTINGS_TOGGLE_BOX_TOP_OFFSET);
         int boxRight = boxLeft + SETTINGS_TOGGLE_BOX_SIZE - 1;
         int boxBottom = boxTop + SETTINGS_TOGGLE_BOX_SIZE - 1;
         int clippedTop = Math.max(boxTop, clipTop);
@@ -2793,11 +2776,13 @@ public final class WorldMapRadarLegendOverlay {
         }
     }
 
-    private static void drawSettingsNavigationRow(GuiGraphics guiGraphics, Font font, String label, int left, int top, int right, double alpha) {
-        int bottom = top + 22;
-        guiGraphics.fill(left, top, right, bottom, withAlpha(UI_BLACK_ALPHA_25, alpha));
-        guiGraphics.drawString(font, label, left + 6, top + 7, withAlpha(0xFFFFFFFF, alpha), false);
-        drawRightArrow(guiGraphics, right - 12, top + (bottom - top - 7) / 2, withAlpha(0xFFFFFFFF, alpha));
+    private static void drawSettingsNavigationRow(GuiGraphics guiGraphics, Font font, String label, int left, double top, int right, double alpha) {
+        guiGraphics.pose().pushPose();
+        guiGraphics.pose().translate(0.0F, (float) top, 0.0F);
+        guiGraphics.fill(left, 0, right, 22, withAlpha(UI_BLACK_ALPHA_25, alpha));
+        guiGraphics.drawString(font, label, left + 6, 7, withAlpha(0xFFFFFFFF, alpha), false);
+        drawRightArrow(guiGraphics, right - 12, 7, withAlpha(0xFFFFFFFF, alpha));
+        guiGraphics.pose().popPose();
     }
 
     private static void drawRightArrow(GuiGraphics guiGraphics, int x, int y, int color) {
@@ -2857,17 +2842,19 @@ public final class WorldMapRadarLegendOverlay {
         settingsModalBottom = top + modalHeight;
     }
 
-    private static void drawSettingsToggleRow(GuiGraphics guiGraphics, Font font, String label, int left, int top, int right, boolean checked, double alpha) {
-        int bottom = top + 22;
-        guiGraphics.fill(left, top, right, bottom, withAlpha(UI_BLACK_ALPHA_25, alpha));
-        guiGraphics.drawString(font, label, left + 6, top + 7, withAlpha(0xFFFFFFFF, alpha), false);
+    private static void drawSettingsToggleRow(GuiGraphics guiGraphics, Font font, String label, int left, double top, int right, boolean checked, double alpha) {
+        guiGraphics.pose().pushPose();
+        guiGraphics.pose().translate(0.0F, (float) top, 0.0F);
+        guiGraphics.fill(left, 0, right, 22, withAlpha(UI_BLACK_ALPHA_25, alpha));
+        guiGraphics.drawString(font, label, left + 6, 7, withAlpha(0xFFFFFFFF, alpha), false);
         int boxSize = SETTINGS_TOGGLE_BOX_SIZE;
         int boxLeft = right - SETTINGS_TOGGLE_BOX_RIGHT_INSET;
-        int boxTop = top + SETTINGS_TOGGLE_BOX_TOP_OFFSET;
+        int boxTop = SETTINGS_TOGGLE_BOX_TOP_OFFSET;
         drawRoundedPanel(guiGraphics, boxLeft, boxTop, boxLeft + boxSize, boxTop + boxSize, withAlpha(UI_BLACK, alpha), withAlpha(0xFFFFFFFF, alpha));
         if (checked) {
             guiGraphics.fill(boxLeft + 3, boxTop + 3, boxLeft + boxSize - 3, boxTop + boxSize - 3, withAlpha(UI_BLUE, alpha));
         }
+        guiGraphics.pose().popPose();
     }
 
     private static void drawDynamicRadar(
@@ -3870,11 +3857,6 @@ public final class WorldMapRadarLegendOverlay {
         double drawX = snappedTextCoordinate(x);
         double drawY = snappedTextCoordinate(y);
         float xScale = controlTextXScale(font, text, scale);
-        if (xScale == 1.0F && scale == 1.0F) {
-            guiGraphics.drawString(font, text, (int) Math.round(drawX), (int) Math.round(drawY), color, false);
-            return;
-        }
-
         drawScaledString(guiGraphics, font, text, drawX, drawY, color, xScale, scale);
     }
 
@@ -3910,7 +3892,9 @@ public final class WorldMapRadarLegendOverlay {
     }
 
     private static double snappedTextCoordinate(double guiValue) {
-        return snapToScreenPixel(guiValue);
+        // Menu labels follow fractional animation/scroll positions. Pixel snapping here made
+        // the panel jump one pixel at a time and pulled animated labels off their rows.
+        return guiValue;
     }
 
     private static double selectedModeTextY(int labelTop) {
@@ -4223,8 +4207,8 @@ public final class WorldMapRadarLegendOverlay {
         }
 
         GL11.glBindTexture(GL11.GL_TEXTURE_2D, radarToolsCloseTextureId);
-        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_NEAREST);
-        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_NEAREST);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER, GL11.GL_LINEAR);
+        GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER, GL11.GL_LINEAR);
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S, GL12.GL_CLAMP_TO_EDGE);
         GL11.glTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T, GL12.GL_CLAMP_TO_EDGE);
         if (radarToolsCloseTextureWidth != textureWidth || radarToolsCloseTextureHeight != textureHeight) {
@@ -4946,16 +4930,7 @@ public final class WorldMapRadarLegendOverlay {
             return;
         }
 
-        guiGraphics.pose().pushPose();
-        guiGraphics.pose().translate((float) left, (float) top, 0.0F);
-        guiGraphics.fill(
-                0,
-                0,
-                Math.max(1, (int) Math.round(right - left)),
-                Math.max(1, (int) Math.ceil(bottom - top)),
-                color
-        );
-        guiGraphics.pose().popPose();
+        fillPreciseRect(guiGraphics, left, top, right, bottom, color);
     }
 
     private static void fillPreciseRect(GuiGraphics guiGraphics, double left, double top, double right, double bottom, int color) {
