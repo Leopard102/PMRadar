@@ -524,7 +524,9 @@ public final class WorldMapRadarLegendOverlay {
             RenderSystem.disableDepthTest();
             guiGraphics.pose().pushPose();
             try {
-                guiGraphics.pose().translate(0.0F, 0.0F, 1000.0F);
+                // The persistent controls are repainted at z=1200, so the Tools menu must use
+                // a higher UI layer as well, especially when its panel overlaps Dual Mode rows.
+                guiGraphics.pose().translate(0.0F, 0.0F, 1400.0F);
                 if (settingsOpen) {
                     double animationProgress = updateRadarToolsOpenAnimation();
                     double panelAlpha = radarToolsPanelAlpha(animationProgress);
