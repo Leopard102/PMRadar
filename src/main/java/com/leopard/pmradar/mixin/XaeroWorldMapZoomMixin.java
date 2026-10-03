@@ -335,19 +335,6 @@ public abstract class XaeroWorldMapZoomMixin {
         WorldMapRadarLegendOverlay.disableDualModeMainMapScissor();
     }
 
-    @Inject(
-            method = "render(Lnet/minecraft/client/gui/GuiGraphics;IIF)V",
-            at = @At("RETURN"),
-            require = 0,
-            remap = false
-    )
-    private void pmradar$drawControlsAfterXaeroRender(GuiGraphics guiGraphics, int mouseX, int mouseY, float partialTicks, CallbackInfo callbackInfo) {
-        WorldMapRadarLegendOverlay.disableDualModeMainMapScissor();
-        WorldMapRadarLegendOverlay.drawPersistentControlsAfterXaeroRender(
-                (Screen) (Object) this, guiGraphics, this.pmradar$renderMouseX, this.pmradar$renderMouseY
-        );
-    }
-
     @Redirect(
             method = "render(Lnet/minecraft/client/gui/GuiGraphics;IIF)V",
             at = @At(value = "INVOKE", target = "Lxaero/map/misc/Misc;getMouseY(Lnet/minecraft/client/Minecraft;Z)D", ordinal = 0),

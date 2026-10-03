@@ -516,9 +516,10 @@ public final class WorldMapRadarLegendOverlay {
         }
         radarLayerRenderedThisFrame = false;
 
-        // The radar bar, mode select and tools button are drawn from the final Xaero return pass
-        // (see drawPersistentControlsAfterXaeroRender). Only the settings modal (opened via the
-        // tools button) still draws here, since a modal is expected to stay on top of everything.
+        // Draw the persistent controls in this final screen pass, after Xaero has composited its
+        // player marker. The settings modal is drawn afterward so it remains on top of the row.
+        drawPersistentControlsAfterXaeroRender(screen, guiGraphics, event.getMouseX(), event.getMouseY());
+
         if (settingsOpen || radarToolsCloseAnimationActive) {
             RenderSystem.disableDepthTest();
             guiGraphics.pose().pushPose();
