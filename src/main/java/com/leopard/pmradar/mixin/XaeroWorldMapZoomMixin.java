@@ -534,11 +534,6 @@ public abstract class XaeroWorldMapZoomMixin {
             double scale,
             CallbackInfo callbackInfo
     ) {
-        if (WorldMapRadarLegendOverlay.shouldSuppressXaeroPlayerArrow(matrixStack, x, z)) {
-            callbackInfo.cancel();
-            return;
-        }
-
         if (WorldMapRadarLegendOverlay.captureDualModePlayerArrow(
                 false,
                 x,
@@ -570,11 +565,6 @@ public abstract class XaeroWorldMapZoomMixin {
             double scale,
             CallbackInfo callbackInfo
     ) {
-        if (WorldMapRadarLegendOverlay.shouldSuppressXaeroPlayerArrow(matrixStack, x, z)) {
-            callbackInfo.cancel();
-            return;
-        }
-
         if (WorldMapRadarLegendOverlay.captureDualModePlayerArrow(
                 true,
                 x,
