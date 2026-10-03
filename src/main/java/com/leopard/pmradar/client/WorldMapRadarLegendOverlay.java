@@ -1787,7 +1787,9 @@ public final class WorldMapRadarLegendOverlay {
     }
 
     private static int dualModeCenterBlackLineHeight(int height, int split) {
-        return height - split * 2 == 1 ? 1 : 0;
+        // Keep the split aligned to the configured panel gap. A leftover GUI pixel here
+        // becomes one physical pixel per GUI scale step and creates a visible blank seam.
+        return DUAL_MAP_PANEL_GAP;
     }
 
     private static void drawDualModeXaeroLabels(GuiGraphics guiGraphics, Font font, int width, int height) {
