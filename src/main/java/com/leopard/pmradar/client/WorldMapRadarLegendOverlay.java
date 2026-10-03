@@ -978,8 +978,13 @@ public final class WorldMapRadarLegendOverlay {
         settingsModalDragging = true;
         settingsModalResizing = false;
         settingsScrollDragging = false;
-        settingsModalDragOffsetX = mouseX - settingsModalLeft;
-        settingsModalDragOffsetY = mouseY - settingsModalTop;
+        Minecraft minecraft = Minecraft.getInstance();
+        int width = minecraft.getWindow().getGuiScaledWidth();
+        int height = minecraft.getWindow().getGuiScaledHeight();
+        double currentLeft = clampSettingsModalLeft(defaultSettingsModalLeft(width) + settingsModalOffsetX, width);
+        double currentTop = clampSettingsModalTop(defaultSettingsModalTop(height) + settingsModalOffsetY, height);
+        settingsModalDragOffsetX = mouseX - currentLeft;
+        settingsModalDragOffsetY = mouseY - currentTop;
     }
 
     private static void updateSettingsModalDrag(double mouseX, double mouseY, int width, int height) {
@@ -2423,7 +2428,19 @@ public final class WorldMapRadarLegendOverlay {
             double mouseY
     ) {
         SettingsModalPlacement placement = settingsModalPlacement(width, height);
-        drawSettingsModalAt(guiGraphics, font, placement.left(), placement.top(), placement.width(), placement.height(), alpha, mouseX, mouseY, true);
+        double exactLeft = clampSettingsModalLeft(defaultSettingsModalLeft(width) + settingsModalOffsetX, width);
+        double exactTop = clampSettingsModalTop(defaultSettingsModalTop(height) + settingsModalOffsetY, height);
+        guiGraphics.pose().pushPose();
+        try {
+            guiGraphics.pose().translate(
+                    (float) (exactLeft - placement.left()),
+                    (float) (exactTop - placement.top()),
+                    0.0F
+            );
+            drawSettingsModalAt(guiGraphics, font, placement.left(), placement.top(), placement.width(), placement.height(), alpha, mouseX, mouseY, true);
+        } finally {
+            guiGraphics.pose().popPose();
+        }
     }
 
     private static void drawSettingsModalAt(
