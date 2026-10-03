@@ -16,6 +16,7 @@ All notable changes to PMRadar are documented here.
 
 - Fixed a Dual Mode map render crash caused by an unbalanced scissor stack.
 - Fixed the radar controls' z-order by drawing them after Xaero's final map-overlay batch, keeping the player marker and all map overlays underneath the storm bar and mode controls.
+- Fixed the PMRadar control pass being partially occluded by Xaero's player marker by disabling depth writes and flushing the bar, buttons, and menus before returning to Xaero.
 - Restored the radar and lightning layers below Xaero's player arrow while keeping the storm bar, buttons, and PMRadar menus above Xaero's final map overlays.
 - Matched PMRadar's live radar timing to PMWeather: client snapshots every tick, with heavy radar/chunk calculations refreshed every 5 ticks and the cached texture uploaded every render frame.
 - Matched PMWeather's fixed radar-block texture resolution for upgraded towers so larger coverage does not multiply rebuild work and delay visible updates.

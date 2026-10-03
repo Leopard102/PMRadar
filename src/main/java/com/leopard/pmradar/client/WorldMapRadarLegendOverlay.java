@@ -418,7 +418,11 @@ public final class WorldMapRadarLegendOverlay {
         BottomControlsLayout activeControls = controls;
         ToolsButtonLayout tools = toolsButtonLayout(width, height);
 
+        // Xaero's player marker and map overlays have already been submitted at this point.
+        // Keep this UI pass independent of their depth state, then flush it before returning
+        // so the marker cannot punch a hole through the PMRadar controls.
         RenderSystem.disableDepthTest();
+        RenderSystem.depthMask(false);
         guiGraphics.pose().pushPose();
         try {
             guiGraphics.pose().last().pose().identity();
@@ -452,8 +456,10 @@ public final class WorldMapRadarLegendOverlay {
                 resetModeChangeAnimation();
             }
             drawRadarToolsButton(guiGraphics, tools.x(), tools.y(), tools.size(), displayEnabled);
+            guiGraphics.flush();
         } finally {
             guiGraphics.pose().popPose();
+            RenderSystem.depthMask(true);
             RenderSystem.enableDepthTest();
         }
 
