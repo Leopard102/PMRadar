@@ -27,6 +27,7 @@ All notable changes to PMRadar are documented here.
 - Removed the scale-dependent blank seam at the top of the lower Dual Mode radar panel.
 - Kept lower-panel radar controls and textures one physical pixel below the split line at GUI scales above 1 so they no longer cover it.
 - Raised the Dual Mode center seam above the storm radar render pass and kept it one physical pixel thick.
+- Removed the Dual Mode center divider and its spacing while Minecraft is fullscreen.
 - Restored the radar and lightning layers below Xaero's player arrow while keeping the storm bar, buttons, and PMRadar menus above Xaero's final map overlays.
 - Matched PMRadar's live radar timing to PMWeather: client snapshots every tick, with heavy radar/chunk calculations refreshed every 5 ticks and the cached texture uploaded every render frame.
 - Matched PMWeather's fixed radar-block texture resolution for upgraded towers so larger coverage does not multiply rebuild work and delay visible updates.

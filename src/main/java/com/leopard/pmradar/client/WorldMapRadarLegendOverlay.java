@@ -1578,7 +1578,7 @@ public final class WorldMapRadarLegendOverlay {
     }
 
     private static void drawDualModeCenterSeam(GuiGraphics guiGraphics, DualMapPanels panels) {
-        if (currentGuiScale() <= 1.0D) {
+        if (!shouldDrawDualModeCenterSeam()) {
             return;
         }
 
@@ -1810,7 +1810,7 @@ public final class WorldMapRadarLegendOverlay {
 
     private static double dualModeLowerSeamOffset() {
         double guiScale = currentGuiScale();
-        if (guiScale <= 1.0D) {
+        if (guiScale <= 1.0D || !shouldDrawDualModeCenterSeam()) {
             return 0.0D;
         }
 
@@ -1821,6 +1821,13 @@ public final class WorldMapRadarLegendOverlay {
 
         double pixelsPerGuiY = dualModePixelsPerGuiY(minecraft.getWindow().getHeight());
         return pixelsPerGuiY > 0.0D ? 1.0D / pixelsPerGuiY : 1.0D / guiScale;
+    }
+
+    private static boolean shouldDrawDualModeCenterSeam() {
+        Minecraft minecraft = Minecraft.getInstance();
+        return minecraft != null
+                && minecraft.getWindow() != null
+                && !minecraft.getWindow().isFullscreen();
     }
 
     private static double dualModePixelsPerGuiY(int rawHeight) {
