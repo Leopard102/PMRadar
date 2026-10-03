@@ -392,10 +392,11 @@ public final class WorldMapRadarLegendOverlay {
     }
 
     /**
-     * Draws the radar bar, mode select row, and tools button after Xaero flushes its map icons
-     * but before Xaero renders later popups (e.g. its right-click menu) for this frame.
+     * Draws the persistent PMRadar controls after Xaero's complete world-map render has returned.
+     * Keeping this with the working tools-menu pass guarantees that Xaero's player marker cannot
+     * punch through the bar, mode selector, or their menus.
      */
-    public static void drawPersistentControlsBeforeXaeroPopups(Screen screen, GuiGraphics guiGraphics, int mouseX, int mouseY) {
+    public static void drawPersistentControlsAfterXaeroRender(Screen screen, GuiGraphics guiGraphics, int mouseX, int mouseY) {
         if (!isWorldMap(screen) || isHiddenUi(screen)) {
             return;
         }
@@ -515,11 +516,9 @@ public final class WorldMapRadarLegendOverlay {
         }
         radarLayerRenderedThisFrame = false;
 
-        // The radar bar, mode select and tools button are now drawn earlier, from inside Xaero's
-        // own render pass (see drawPersistentControlsBeforeXaeroPopups), so that Xaero's own
-        // right-click menu - drawn near the end of its render pass - ends up on top of them
-        // instead of hidden behind them. Only the settings modal (opened via the tools button)
-        // still draws here, since a modal is expected to stay on top of everything when open.
+        // The radar bar, mode select and tools button are drawn from the final Xaero return pass
+        // (see drawPersistentControlsAfterXaeroRender). Only the settings modal (opened via the
+        // tools button) still draws here, since a modal is expected to stay on top of everything.
         if (settingsOpen || radarToolsCloseAnimationActive) {
             RenderSystem.disableDepthTest();
             guiGraphics.pose().pushPose();
