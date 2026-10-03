@@ -1573,7 +1573,31 @@ public final class WorldMapRadarLegendOverlay {
         );
         drawDualModeRadarLayer(guiGraphics, panels.upper(), sourceView, radarSites, StormOverlayData.getDualUpperMode(), false);
         drawDualModeRadarLayer(guiGraphics, panels.lower(), sourceView, radarSites, StormOverlayData.getDualLowerMode(), true);
+        drawDualModeCenterSeam(guiGraphics, panels);
         return panels;
+    }
+
+    private static void drawDualModeCenterSeam(GuiGraphics guiGraphics, DualMapPanels panels) {
+        if (currentGuiScale() <= 1.0D) {
+            return;
+        }
+
+        int seamTop = panels.lower().top();
+        int seamBottom = Math.min(panels.lower().bottom(), seamTop + 1);
+        if (seamBottom <= seamTop) {
+            return;
+        }
+
+        // The radar texture is drawn immediately, so repaint the split afterward at a
+        // higher screen-space Z instead of moving the whole lower panel farther down.
+        guiGraphics.pose().pushPose();
+        try {
+            guiGraphics.pose().translate(0.0F, 0.0F, 20.0F);
+            guiGraphics.fill(panels.lower().left(), seamTop, panels.lower().right(), seamBottom, 0xFF000000);
+            guiGraphics.flush();
+        } finally {
+            guiGraphics.pose().popPose();
+        }
     }
 
     private static void drawDualModeStationLabels(
