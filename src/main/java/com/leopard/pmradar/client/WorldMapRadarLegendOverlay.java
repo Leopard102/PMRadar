@@ -1583,8 +1583,8 @@ public final class WorldMapRadarLegendOverlay {
         }
 
         int seamTop = panels.lower().top();
-        int seamBottom = Math.min(panels.lower().bottom(), seamTop + 1);
-        if (seamBottom <= seamTop) {
+        double seamThickness = dualModeLowerSeamOffset();
+        if (seamThickness <= 0.0D || seamTop >= panels.lower().bottom()) {
             return;
         }
 
@@ -1593,7 +1593,14 @@ public final class WorldMapRadarLegendOverlay {
         guiGraphics.pose().pushPose();
         try {
             guiGraphics.pose().translate(0.0F, 0.0F, 20.0F);
-            guiGraphics.fill(panels.lower().left(), seamTop, panels.lower().right(), seamBottom, 0xFF000000);
+            fillPreciseRect(
+                    guiGraphics,
+                    panels.lower().left(),
+                    seamTop,
+                    panels.lower().right(),
+                    Math.min(panels.lower().bottom(), seamTop + seamThickness),
+                    0xFF000000
+            );
             guiGraphics.flush();
         } finally {
             guiGraphics.pose().popPose();
@@ -1807,9 +1814,13 @@ public final class WorldMapRadarLegendOverlay {
             return 0.0D;
         }
 
-        // The split is laid out in GUI coordinates. Keep lower-panel content one full
-        // GUI pixel below it so the middle line is not covered at scales 2-4.
-        return 1.0D;
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || minecraft.getWindow() == null) {
+            return 1.0D / guiScale;
+        }
+
+        double pixelsPerGuiY = dualModePixelsPerGuiY(minecraft.getWindow().getHeight());
+        return pixelsPerGuiY > 0.0D ? 1.0D / pixelsPerGuiY : 1.0D / guiScale;
     }
 
     private static double dualModePixelsPerGuiY(int rawHeight) {
